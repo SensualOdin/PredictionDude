@@ -1,32 +1,51 @@
 import { create } from 'zustand';
-import { PredictionResponse, PredictionOption } from './types';
+import { PredictionResponse } from './types';
+
+interface ImageData {
+  file: File;
+  preview: string;
+}
 
 interface PredictionState {
+  // Input mode
+  inputMode: 'images' | 'manual';
+  isParlay: boolean;
+
+  // Form fields
   question: string;
   bankroll: number;
-  imageFile: File | null;
-  imagePreview: string | null;
+  manualInput: string;
+
+  // Multiple images
+  images: ImageData[];
+
+  // Loading/results
   isLoading: boolean;
   prediction: PredictionResponse | null;
   error: string | null;
 
   // Actions
+  setInputMode: (mode: 'images' | 'manual') => void;
+  setIsParlay: (isParlay: boolean) => void;
   setQuestion: (question: string) => void;
   setBankroll: (bankroll: number) => void;
-  setImageFile: (file: File | null) => void;
-  setImagePreview: (preview: string | null) => void;
+  setManualInput: (input: string) => void;
+  addImage: (file: File, preview: string) => void;
+  removeImage: (index: number) => void;
+  clearImages: () => void;
   setLoading: (loading: boolean) => void;
   setPrediction: (prediction: PredictionResponse | null) => void;
   setError: (error: string | null) => void;
-  updateStake: (optionName: string, newStake: number) => void;
   reset: () => void;
 }
 
 const initialState = {
+  inputMode: 'images' as const,
+  isParlay: false,
   question: 'Analyze these odds and predict the winner.',
   bankroll: 100,
-  imageFile: null,
-  imagePreview: null,
+  manualInput: '',
+  images: [],
   isLoading: false,
   prediction: null,
   error: null,
@@ -35,64 +54,31 @@ const initialState = {
 export const usePredictionStore = create<PredictionState>((set) => ({
   ...initialState,
 
+  setInputMode: (mode) => set({ inputMode: mode }),
+
+  setIsParlay: (isParlay) => set({ isParlay }),
+
   setQuestion: (question) => set({ question }),
 
   setBankroll: (bankroll) => set({ bankroll }),
 
-  setImageFile: (file) => set({ imageFile: file }),
+  setManualInput: (input) => set({ manualInput: input }),
 
-  setImagePreview: (preview) => set({ imagePreview: preview }),
+  addImage: (file, preview) => set((state) => ({
+    images: [...state.images, { file, preview }]
+  })),
+
+  removeImage: (index) => set((state) => ({
+    images: state.images.filter((_, i) => i !== index)
+  })),
+
+  clearImages: () => set({ images: [] }),
 
   setLoading: (loading) => set({ isLoading: loading }),
 
   setPrediction: (prediction) => set({ prediction }),
 
   setError: (error) => set({ error }),
-
-  // Update a single option's stake and rebalance others
-  updateStake: (optionName, newStake) => set((state) => {
-    if (!state.prediction) return state;
-
-    const options = [...state.prediction.options];
-    const targetIndex = options.findIndex(opt => opt.name === optionName);
-
-    if (targetIndex === -1) return state;
-
-    // Update the target option
-    options[targetIndex] = {
-      ...options[targetIndex],
-      recommendedStake: newStake,
-    };
-
-    // Calculate remaining stake to distribute
-    const totalStake = options.reduce((sum, opt) => sum + opt.recommendedStake, 0);
-
-    if (totalStake > 100) {
-      // If total exceeds 100%, proportionally reduce others
-      const excess = totalStake - 100;
-      const otherOptions = options.filter((_, i) => i !== targetIndex);
-      const otherTotal = otherOptions.reduce((sum, opt) => sum + opt.recommendedStake, 0);
-
-      if (otherTotal > 0) {
-        options.forEach((opt, i) => {
-          if (i !== targetIndex && opt.recommendedStake > 0) {
-            const reduction = (opt.recommendedStake / otherTotal) * excess;
-            options[i] = {
-              ...opt,
-              recommendedStake: Math.max(0, opt.recommendedStake - reduction),
-            };
-          }
-        });
-      }
-    }
-
-    return {
-      prediction: {
-        ...state.prediction,
-        options,
-      },
-    };
-  }),
 
   reset: () => set(initialState),
 }));

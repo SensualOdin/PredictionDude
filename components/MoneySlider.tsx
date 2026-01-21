@@ -1,7 +1,5 @@
 'use client';
 
-import { usePredictionStore } from '@/lib/store';
-
 interface MoneySliderProps {
   optionName: string;
   stake: number;
@@ -10,18 +8,12 @@ interface MoneySliderProps {
 }
 
 export default function MoneySlider({ optionName, stake, amount, edge }: MoneySliderProps) {
-  const { updateStake, bankroll } = usePredictionStore();
-
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newStake = Number(e.target.value);
-    updateStake(optionName, newStake);
-  };
-
   const edgeColor = edge > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
   const bgColor = edge > 0 ? 'bg-green-500' : 'bg-gray-400';
+  const borderColor = edge > 0 ? 'border-green-200 dark:border-green-800' : 'border-gray-200 dark:border-gray-700';
 
   return (
-    <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 space-y-3">
+    <div className={`p-4 rounded-lg border ${borderColor} bg-white dark:bg-gray-800 space-y-3`}>
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -38,31 +30,21 @@ export default function MoneySlider({ optionName, stake, amount, edge }: MoneySl
         </div>
       </div>
 
-      {/* Slider */}
-      <div className="space-y-2">
-        <input
-          type="range"
-          min="0"
-          max="100"
-          step="0.1"
-          value={stake}
-          onChange={handleSliderChange}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
-          style={{
-            background: `linear-gradient(to right, ${edge > 0 ? '#10b981' : '#6b7280'} 0%, ${edge > 0 ? '#10b981' : '#6b7280'} ${stake}%, #e5e7eb ${stake}%, #e5e7eb 100%)`,
-          }}
-        />
-        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span>$0</span>
-          <span>${bankroll}</span>
-        </div>
+      {/* AI Recommendation Badge */}
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
+          </svg>
+          AI Recommended
+        </span>
       </div>
 
       {/* Visual Bar */}
       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
         <div
           className={`h-full ${bgColor} transition-all duration-300`}
-          style={{ width: `${stake}%` }}
+          style={{ width: `${Math.min(stake, 100)}%` }}
         />
       </div>
     </div>

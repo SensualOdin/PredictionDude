@@ -24,9 +24,26 @@ export interface PredictionResponse {
     bestValue: string;
     marketEfficiency: string;
   };
+  // Parlay-specific fields (optional, only present when isParlay = true)
+  parlay?: {
+    combinedOdds: number;
+    combinedProbability: number;
+    potentialPayout: number;
+    recommendedStake: number;
+  };
 }
 
 export interface PredictionRequest {
+  question: string;
+  bankroll: number;
+  isParlay: boolean;
+  inputMode: 'images' | 'manual';
+  images?: string[];  // Array of base64 strings
+  manualInput?: string;  // Text-based prediction input
+}
+
+// Legacy support
+export interface LegacyPredictionRequest {
   question: string;
   imageBase64: string;
   bankroll: number;

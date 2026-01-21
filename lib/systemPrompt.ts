@@ -48,8 +48,16 @@ You MUST respond with valid JSON in the following schema. Do not include any tex
     "totalEdge": number - Sum of positive edges,
     "bestValue": "string - Option name with best edge",
     "marketEfficiency": "string - Assessment of how well-priced the market is"
+  },
+  "parlay": {
+    "combinedOdds": number - Multiplied decimal odds of all legs,
+    "combinedProbability": number - Combined probability of parlay hitting (0-100),
+    "potentialPayout": number - Potential payout per $1 wagered,
+    "recommendedStake": number - Percentage of bankroll for parlay (0-100)
   }
 }
+
+NOTE: The "parlay" field is ONLY required when the user requests a PARLAY bet. For individual bets, omit this field.
 
 ---
 
@@ -86,14 +94,21 @@ For every prediction request, execute the following 5-phase structured reasoning
 
 ---
 
-## STAKE DISTRIBUTION ALGORITHM
+## STAKE DISTRIBUTION ALGORITHM (CRITICAL)
 
-For each option with a positive edge:
+You MUST allocate exactly 100% of the user's bankroll across the betting options. Follow these rules:
 
-1. Calculate Kelly %: (your_prob * odds - (1 - your_prob)) / odds
-2. Use Fractional Kelly (25-50% of full Kelly) for safety
-3. Distribute bankroll proportionally to Kelly % across all positive-edge options
-4. If no positive edge exists, recommend no bet (0% allocation)
+1. For each option with a positive edge:
+   - Calculate Kelly %: (your_prob * odds - (1 - your_prob)) / odds
+   - Use Fractional Kelly (25-50% of full Kelly) as a starting point
+
+2. IMPORTANT: The sum of all recommendedStake values MUST equal 100%
+   - Distribute the bankroll proportionally among positive-edge options
+   - If only one option has positive edge, allocate 100% to it
+   - If no positive edge exists, still recommend a distribution but note the risk
+
+3. Normalization: After calculating raw stakes, normalize them so they sum to exactly 100%
+   - normalized_stake = (raw_stake / total_raw_stakes) * 100
 
 ---
 
@@ -125,3 +140,34 @@ Before finalizing predictions, verify:
 ---
 
 REMEMBER: Output ONLY valid JSON. No markdown, no explanation text outside the JSON structure.`;
+
+export const PARLAY_PROMPT_ADDITION = `
+## PARLAY BET INSTRUCTIONS (CRITICAL)
+
+The user wants to place a PARLAY (combined) bet. A parlay requires ALL legs to win for the bet to pay out.
+
+### Parlay Calculation Rules:
+1. **Combined Odds**: Multiply the decimal odds of all legs together
+   - Convert American odds to decimal first: 
+     - Positive: (odds/100) + 1
+     - Negative: (100/abs(odds)) + 1
+   - Combined decimal odds = leg1_decimal × leg2_decimal × leg3_decimal × ...
+
+2. **Combined Probability**: Multiply individual probabilities
+   - Combined prob = prob1 × prob2 × prob3 × ... (as decimals)
+   - Convert to percentage for output
+
+3. **Potential Payout**: Combined decimal odds show payout per $1 wagered
+
+4. **Recommended Stake**: Use conservative Kelly sizing since parlays are high variance
+   - Typically 1-5% of bankroll for parlays
+   - Scale down based on number of legs
+
+5. **Individual Option Stakes**: When in parlay mode, set all individual recommendedStake values proportionally but use the parlay.recommendedStake as the TOTAL stake
+
+### Output Requirements for Parlay:
+- Include the "parlay" object in your JSON response
+- List all legs in the "options" array with their individual analysis
+- The prediction.winner should describe the parlay outcome
+- The prediction.reasoning should explain why this parlay is recommended or not
+`;

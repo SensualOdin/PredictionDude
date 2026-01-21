@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePredictionStore } from '@/lib/store';
 import InputForm from '@/components/InputForm';
-import PredictionResults from '@/components/PredictionResults';
 
 export default function Home() {
+  const router = useRouter();
   const {
     question,
     bankroll,
-    imageFile,
-    imagePreview,
+    inputMode,
+    isParlay,
+    images,
+    manualInput,
     isLoading,
-    prediction,
     error,
     setLoading,
     setPrediction,
@@ -22,8 +23,13 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!imageFile) {
-      setError('Please upload an image of the odds');
+    // Validation
+    if (inputMode === 'images' && images.length === 0) {
+      setError('Please upload at least one image of the odds');
+      return;
+    }
+    if (inputMode === 'manual' && !manualInput.trim()) {
+      setError('Please enter your betting options');
       return;
     }
 
@@ -31,9 +37,6 @@ export default function Home() {
     setError(null);
 
     try {
-      // Convert image to base64
-      const base64 = imagePreview || '';
-
       const response = await fetch('/api/predict', {
         method: 'POST',
         headers: {
@@ -41,8 +44,11 @@ export default function Home() {
         },
         body: JSON.stringify({
           question,
-          imageBase64: base64,
           bankroll,
+          isParlay,
+          inputMode,
+          images: inputMode === 'images' ? images.map(img => img.preview) : undefined,
+          manualInput: inputMode === 'manual' ? manualInput : undefined,
         }),
       });
 
@@ -53,6 +59,7 @@ export default function Home() {
       }
 
       setPrediction(data);
+      router.push('/results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Prediction error:', err);
@@ -60,6 +67,11 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // Check if form is ready to submit
+  const canSubmit = inputMode === 'images'
+    ? images.length > 0
+    : manualInput.trim().length > 0;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -73,7 +85,7 @@ export default function Home() {
             AI-Powered Prediction & Bankroll Distribution Assistant
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-            Powered by Gemini 2.0 Flash
+            Powered by Gemini 3 Pro
           </p>
         </div>
 
@@ -94,7 +106,7 @@ export default function Home() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading || !imageFile}
+                disabled={isLoading || !canSubmit}
                 className="mt-6 w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-lg transition-all transform hover:scale-[1.02] disabled:scale-100 disabled:cursor-not-allowed shadow-lg disabled:shadow-none flex items-center justify-center gap-3"
               >
                 {isLoading ? (
@@ -122,19 +134,12 @@ export default function Home() {
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Generate Prediction
+                    {isParlay ? 'Generate Parlay Prediction' : 'Generate Prediction'}
                   </>
                 )}
               </button>
             </form>
           </div>
-
-          {/* Results Section */}
-          {prediction && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
-              <PredictionResults />
-            </div>
-          )}
         </div>
 
         {/* Footer */}

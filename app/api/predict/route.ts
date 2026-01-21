@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SYSTEM_PROMPT } from '@/lib/systemPrompt';
+import { SYSTEM_PROMPT, PARLAY_PROMPT_ADDITION } from '@/lib/systemPrompt';
 import { PredictionRequest, PredictionResponse } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -14,24 +14,48 @@ export async function POST(request: NextRequest) {
     }
 
     const body: PredictionRequest = await request.json();
-    const { question, imageBase64, bankroll } = body;
+    const { question, bankroll, isParlay, inputMode, images, manualInput } = body;
 
-    if (!question || !imageBase64 || !bankroll) {
+    // Validation
+    if (!question || !bankroll) {
       return NextResponse.json(
-        { error: 'Missing required fields: question, imageBase64, or bankroll' },
+        { error: 'Missing required fields: question or bankroll' },
         { status: 400 }
       );
     }
 
-    // Remove data URL prefix if present
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    if (inputMode === 'images' && (!images || images.length === 0)) {
+      return NextResponse.json(
+        { error: 'Please upload at least one image' },
+        { status: 400 }
+      );
+    }
 
-    // Detect mime type from data URL
-    const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    if (inputMode === 'manual' && !manualInput?.trim()) {
+      return NextResponse.json(
+        { error: 'Please provide betting options text' },
+        { status: 400 }
+      );
+    }
 
-    // Prepare the prompt with system instructions and user query
-    const prompt = `${SYSTEM_PROMPT}
+    // Prepare the prompt
+    const basePrompt = isParlay ? `${SYSTEM_PROMPT}\n\n${PARLAY_PROMPT_ADDITION}` : SYSTEM_PROMPT;
+
+    let taskDescription = '';
+    if (inputMode === 'images') {
+      taskDescription = `Analyze the uploaded image${images!.length > 1 ? 's' : ''} containing betting odds or prediction market options. Extract all options and their odds, calculate probabilities, identify edges, and recommend a bankroll distribution strategy.`;
+    } else {
+      taskDescription = `Analyze the following betting options provided by the user. Parse each option, extract odds, calculate probabilities, identify edges, and recommend a bankroll distribution strategy.
+
+USER PROVIDED OPTIONS:
+${manualInput}`;
+    }
+
+    if (isParlay) {
+      taskDescription += '\n\nIMPORTANT: The user wants to place a PARLAY bet. Calculate combined odds and recommend a single stake for the parlay.';
+    }
+
+    const prompt = `${basePrompt}
 
 ---
 
@@ -39,27 +63,39 @@ USER QUERY: ${question}
 
 USER BANKROLL: $${bankroll}
 
-TASK: Analyze the uploaded image containing betting odds or prediction market options. Extract all options and their odds, calculate probabilities, identify edges, and recommend a bankroll distribution strategy.
+BET TYPE: ${isParlay ? 'PARLAY (combined bet)' : 'INDIVIDUAL BETS'}
+
+TASK: ${taskDescription}
 
 Remember: Output ONLY valid JSON matching the schema provided in the system prompt.`;
 
-    // Direct API call to Gemini using fetch
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
+    // Build content parts for Gemini API
+    const parts: any[] = [];
+
+    // Add images if in image mode
+    if (inputMode === 'images' && images) {
+      for (const imageBase64 of images) {
+        const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+        const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+
+        parts.push({
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Data
+          }
+        });
+      }
+    }
+
+    // Add the text prompt
+    parts.push({ text: prompt });
+
+    // Direct API call to Gemini
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`;
 
     const geminiPayload = {
-      contents: [{
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data
-            }
-          },
-          {
-            text: prompt
-          }
-        ]
-      }],
+      contents: [{ parts }],
       generationConfig: {
         temperature: 0.4,
         topP: 0.95,
@@ -68,7 +104,7 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
       }
     };
 
-    console.log('Calling Gemini API...');
+    console.log(`Calling Gemini API... (${inputMode} mode, parlay: ${isParlay}, ${images?.length || 0} images)`);
     const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
@@ -142,6 +178,7 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
       ...predictionData,
       options: optionsWithAmounts,
       bankroll,
+      isParlay,
     });
 
   } catch (error) {
