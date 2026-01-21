@@ -1,0 +1,74 @@
+# Product Requirements Document (PRD): The Prediction Helper
+
+| *Version* | 1.0 |
+| :--- | :--- |
+| *Status* | Draft |
+| *Product Name* | Project Oracle (Working Title) |
+| *Platform* | Web (Mobile Responsive) |
+
+---
+
+## 1. Executive Summary
+*Project Oracle* is a web-based prediction assistant that leverages multimodal AI to analyze visual betting odds or prediction market options. Users can upload a screenshot of odds (from a sportsbook, game screen, or prediction market), ask a specific question, and define a bankroll. The system uses Google Gemini to process the visual data, correlate it with internal knowledge, and output a predicted outcome with a "Smart Distribution" financial model.
+
+## 2. Problem Statement
+Users dealing with prediction markets or sports betting often struggle to manually cross-reference the static odds presented on a screen with the dynamic, real-time probability of the event occurring. Furthermore, even when a user has a prediction, calculating the optimal distribution of their bankroll across multiple outcomes is mathematically difficult to do on the fly.
+
+## 3. User Flow
+1.  *Input:* User enters a text query (e.g., "Who wins this matchup?") and a Total Wager Amount (e.g., $100).
+2.  *Upload:* User takes a screenshot of the available options/odds and uploads it.
+3.  *Process:* The system sends the image + query to Gemini 1.5 Flash.
+4.  *Analysis:* AI extracts text (OCR), interprets odds (implied probability), and compares them against its training data/reasoning.
+5.  *Output:*
+    * *Prediction:* The AI's selected winner/outcome.
+    * *Confidence Score:* A percentage rating of certainty.
+    * *Money Slider:* A visual tool showing how the $100 should be distributed across the options based on the confidence score.
+
+---
+
+## 4. Functional Requirements
+
+### 4.1 Input Module
+* *Text Field:* Accepts natural language questions.
+    * Default: "Analyze these odds and predict the winner."
+* *Image Uploader:* Drag-and-drop zone or file picker.
+    * Supported formats: PNG, JPG, WEBP.
+    * Constraint: Image must be compressed client-side before API call to reduce latency.
+* *Bankroll Input:* Numeric input for the total amount the user wishes to allocate (The "Money Pot").
+
+### 4.2 Intelligence Engine (Gemini Integration)
+* *Model:* Gemini 1.5 Flash (chosen for low latency and high multimodal capability) or Pro (for complex reasoning).
+* *System Prompt:* Must enforce a specific JSON output schema.
+* *Tasks:*
+    1.  *OCR:* Accurately read names and odds (e.g., "+200", "-150", "3.5x").
+    2.  *Logic:* Calculate "Implied Probability" from the odds.
+    3.  *Prediction:* Compare Implied Probability vs. AI's "Calculated Probability."
+    4.  *Value Identification:* Highlight where the AI disagrees with the bookmaker (this is the "Edge").
+
+### 4.3 The "Money Slider" & Visualization
+* *Dynamic Distribution:* The UI must display a bar chart or slider for each detected outcome.
+* *Algorithm:*
+    * Input: User's Total Bankroll (e.g., $100).
+    * Logic: Weighted distribution based on AI Confidence.
+    * Formula: (Outcome Confidence / Total Confidence of all viable options) * Bankroll.
+* *Interactivity:* If the user manually drags one slider (adjusting their wager on Option A), the other sliders must auto-adjust to ensure the total equals the Bankroll Input.
+
+---
+
+## 5. Technical Architecture
+
+### 5.1 Tech Stack
+* *Frontend:* Next.js (App Router), React, Tailwind CSS.
+* *State Management:* React Hook Form (for inputs), Zustand (for slider math).
+* *Backend/API:* Next.js API Routes (Serverless).
+* *AI Provider:* Google Generative AI SDK (@google/generative-ai).
+* *Database (Optional for V1):* Supabase (PostgreSQL) if saving user history/past predictions is required.
+
+### 5.2 API Schema (Internal)
+*Endpoint:* POST /api/predict
+*Request:*
+```json
+{
+  "question": "Who will win the NFC North?",
+  "imageBase64": "data:image/jpeg;base64,..."
+}

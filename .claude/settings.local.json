@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import-alias \"@/*\" --eslint)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(tree:*)",
+      "Bash(node verify-setup.js:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(taskkill:*)",
+      "Bash(node:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
