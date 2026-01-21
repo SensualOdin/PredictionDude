@@ -36,6 +36,7 @@ export default function HistoryPage() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [addingBet, setAddingBet] = useState(false);
     const [addError, setAddError] = useState<string | null>(null);
+    const [isParlay, setIsParlay] = useState(false);
 
     // Custom bet form state
     const [customBet, setCustomBet] = useState({
@@ -44,6 +45,12 @@ export default function HistoryPage() {
         stake: '',
         notes: '',
     });
+
+    // Parlay legs state
+    const [parlayLegs, setParlayLegs] = useState<{ name: string; odds: string }[]>([
+        { name: '', odds: '' },
+        { name: '', odds: '' }
+    ]);
 
     const router = useRouter();
     const supabase = createClient();
@@ -76,21 +83,59 @@ export default function HistoryPage() {
         setLoading(false);
     };
 
+    const addParlayLeg = () => {
+        setParlayLegs([...parlayLegs, { name: '', odds: '' }]);
+    };
+
+    const removeParlayLeg = (index: number) => {
+        if (parlayLegs.length > 2) {
+            setParlayLegs(parlayLegs.filter((_, i) => i !== index));
+        }
+    };
+
+    const updateParlayLeg = (index: number, field: 'name' | 'odds', value: string) => {
+        const updated = [...parlayLegs];
+        updated[index][field] = value;
+        setParlayLegs(updated);
+    };
+
+    const getCombinedOdds = () => {
+        return parlayLegs.reduce((acc, leg) => {
+            const odds = parseFloat(leg.odds) || 1;
+            return acc * odds;
+        }, 1);
+    };
+
     const handleAddCustomBet = async (e: React.FormEvent) => {
         e.preventDefault();
         setAddingBet(true);
         setAddError(null);
 
         try {
-            const response = await fetch('/api/bets/custom', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const payload = isParlay
+                ? {
+                    betName: `Parlay: ${parlayLegs.map(l => l.name).join(' + ')}`,
+                    odds: getCombinedOdds(),
+                    stake: parseFloat(customBet.stake),
+                    notes: customBet.notes,
+                    isParlay: true,
+                    legs: parlayLegs.map(l => ({
+                        name: l.name,
+                        odds: parseFloat(l.odds)
+                    }))
+                }
+                : {
                     betName: customBet.betName,
                     odds: parseFloat(customBet.odds),
                     stake: parseFloat(customBet.stake),
                     notes: customBet.notes,
-                }),
+                    isParlay: false
+                };
+
+            const response = await fetch('/api/bets/custom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
             const data = await response.json();
@@ -101,6 +146,8 @@ export default function HistoryPage() {
 
             // Reset form and refresh
             setCustomBet({ betName: '', odds: '', stake: '', notes: '' });
+            setParlayLegs([{ name: '', odds: '' }, { name: '', odds: '' }]);
+            setIsParlay(false);
             setShowAddForm(false);
             fetchPredictions();
         } catch (error) {
@@ -177,8 +224,8 @@ export default function HistoryPage() {
                         <button
                             onClick={() => setShowAddForm(!showAddForm)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showAddForm
-                                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                                 }`}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -205,38 +252,126 @@ export default function HistoryPage() {
                             <span>📝</span> Add Custom Bet
                         </h2>
                         <form onSubmit={handleAddCustomBet} className="space-y-4">
-                            <div className="grid md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Bet Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={customBet.betName}
-                                        onChange={(e) => setCustomBet({ ...customBet, betName: e.target.value })}
-                                        placeholder="e.g., Cade Cunningham +20 points"
-                                        required
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                                    />
+                            {/* Parlay Toggle */}
+                            <div className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bet Type:</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsParlay(false)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!isParlay
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-500'
+                                            }`}
+                                    >
+                                        Single Bet
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsParlay(true)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isParlay
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-500'
+                                            }`}
+                                    >
+                                        🎯 Parlay
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Odds (decimal) *
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="1"
-                                        value={customBet.odds}
-                                        onChange={(e) => setCustomBet({ ...customBet, odds: e.target.value })}
-                                        placeholder="e.g., 1.5"
-                                        required
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        1.5x = +100 American
-                                    </p>
+                            </div>
+
+                            {/* Single Bet Fields */}
+                            {!isParlay && (
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Bet Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={customBet.betName}
+                                            onChange={(e) => setCustomBet({ ...customBet, betName: e.target.value })}
+                                            placeholder="e.g., Cade Cunningham +20 points"
+                                            required={!isParlay}
+                                            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Odds (decimal) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="1"
+                                            value={customBet.odds}
+                                            onChange={(e) => setCustomBet({ ...customBet, odds: e.target.value })}
+                                            placeholder="e.g., 1.5"
+                                            required={!isParlay}
+                                            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
                                 </div>
+                            )}
+
+                            {/* Parlay Legs */}
+                            {isParlay && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Parlay Legs ({parlayLegs.length})
+                                        </label>
+                                        <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">
+                                            Combined Odds: {getCombinedOdds().toFixed(2)}x
+                                        </div>
+                                    </div>
+                                    {parlayLegs.map((leg, index) => (
+                                        <div key={index} className="flex gap-3 items-center">
+                                            <span className="w-6 h-6 flex items-center justify-center bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-bold">
+                                                {index + 1}
+                                            </span>
+                                            <input
+                                                type="text"
+                                                value={leg.name}
+                                                onChange={(e) => updateParlayLeg(index, 'name', e.target.value)}
+                                                placeholder="Leg name (e.g., Lakers ML)"
+                                                required
+                                                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                                            />
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="1"
+                                                value={leg.odds}
+                                                onChange={(e) => updateParlayLeg(index, 'odds', e.target.value)}
+                                                placeholder="Odds"
+                                                required
+                                                className="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                                            />
+                                            {parlayLegs.length > 2 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeParlayLeg(index)}
+                                                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addParlayLeg}
+                                        className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 transition-all"
+                                    >
+                                        + Add Leg
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Stake & Notes (shared) */}
+                            <div className="grid md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Stake ($) *
@@ -251,20 +386,24 @@ export default function HistoryPage() {
                                         required
                                         className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
                                     />
+                                    {isParlay && customBet.stake && (
+                                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                            Potential payout: ${(parseFloat(customBet.stake) * getCombinedOdds()).toFixed(2)}
+                                        </p>
+                                    )}
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Notes (optional)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={customBet.notes}
-                                    onChange={(e) => setCustomBet({ ...customBet, notes: e.target.value })}
-                                    placeholder="e.g., DraftKings promo, player prop"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                                />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Notes (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={customBet.notes}
+                                        onChange={(e) => setCustomBet({ ...customBet, notes: e.target.value })}
+                                        placeholder="e.g., DraftKings promo"
+                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
                             </div>
 
                             {addError && (
@@ -277,9 +416,12 @@ export default function HistoryPage() {
                                 <button
                                     type="submit"
                                     disabled={addingBet}
-                                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2 px-4 rounded-lg transition-all"
+                                    className={`flex-1 font-medium py-2 px-4 rounded-lg transition-all text-white ${isParlay
+                                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                                            : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+                                        } disabled:from-gray-400 disabled:to-gray-500`}
                                 >
-                                    {addingBet ? 'Adding...' : 'Add Bet'}
+                                    {addingBet ? 'Adding...' : isParlay ? 'Add Parlay' : 'Add Bet'}
                                 </button>
                                 <button
                                     type="button"
