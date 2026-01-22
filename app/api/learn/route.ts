@@ -169,6 +169,7 @@ Output ONLY valid JSON.`;
             },
             analysis: learningData.analysis,
             recommendations: learningData.recommendations,
+            updatedPromptSections: learningData.updatedPromptSections,
             summary: learningData.summary,
             iterationId: savedIteration?.id,
         });

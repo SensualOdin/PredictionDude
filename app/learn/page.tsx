@@ -29,15 +29,24 @@ interface LearningResult {
         change: string;
         rationale: string;
     }[];
+    updatedPromptSections: {
+        COGNITIVE_POSTURE: string | null;
+        DOMAIN_ADJUSTMENTS: string | null;
+        STAKE_DISTRIBUTION: string | null;
+        DEBIASING_CHECKLIST: string | null;
+    };
     summary: string;
+    iterationId: string;
 }
 
 export default function LearnPage() {
     const [iterations, setIterations] = useState<LearningIteration[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyzing, setAnalyzing] = useState(false);
+    const [applying, setApplying] = useState(false);
     const [result, setResult] = useState<LearningResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const router = useRouter();
     const supabase = createClient();
 
@@ -62,6 +71,7 @@ export default function LearnPage() {
         setAnalyzing(true);
         setError(null);
         setResult(null);
+        setSuccessMessage(null);
 
         try {
             const response = await fetch('/api/learn', {
@@ -82,6 +92,42 @@ export default function LearnPage() {
         } finally {
             setAnalyzing(false);
         }
+    };
+
+    const applyUpdates = async () => {
+        if (!result) return;
+
+        setApplying(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            const response = await fetch('/api/prompt/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    learningIterationId: result.iterationId,
+                    promptSections: result.updatedPromptSections,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to apply updates');
+            }
+
+            setSuccessMessage(`Successfully applied prompt updates! Version ${data.version.versionNumber} is now active.`);
+            setResult(null); // Clear result after applying
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to apply updates');
+        } finally {
+            setApplying(false);
+        }
+    };
+
+    const hasPromptUpdates = (sections: LearningResult['updatedPromptSections']) => {
+        return Object.values(sections).some(val => val !== null);
     };
 
     return (
@@ -147,6 +193,13 @@ export default function LearnPage() {
                 {error && (
                     <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <p className="text-red-800 dark:text-red-300">{error}</p>
+                    </div>
+                )}
+
+                {/* Success Display */}
+                {successMessage && (
+                    <div className="mb-8 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <p className="text-green-800 dark:text-green-300">{successMessage}</p>
                     </div>
                 )}
 
@@ -216,6 +269,60 @@ export default function LearnPage() {
                                 ))}
                             </div>
                         </div>
+
+                        {/* Prompt Updates Preview */}
+                        {hasPromptUpdates(result.updatedPromptSections) && (
+                            <div className="bg-white dark:bg-gray-800 border-2 border-blue-300 dark:border-blue-700 rounded-xl p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">🔄 Proposed Prompt Updates</h3>
+                                    <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
+                                        Ready to apply
+                                    </span>
+                                </div>
+
+                                <div className="space-y-4 mb-6">
+                                    {Object.entries(result.updatedPromptSections).map(([section, content]) => {
+                                        if (!content) return null;
+                                        return (
+                                            <div key={section} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                                <p className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2">
+                                                    {section.replace(/_/g, ' ')}
+                                                </p>
+                                                <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-3 rounded">
+                                                    <p className="text-xs text-green-800 dark:text-green-300 whitespace-pre-wrap font-mono">
+                                                        {content.substring(0, 200)}
+                                                        {content.length > 200 && '...'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={applyUpdates}
+                                    disabled={applying}
+                                    className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-3"
+                                >
+                                    {applying ? (
+                                        <>
+                                            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                            Applying Updates...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Apply Updates to System Prompt
+                                        </>
+                                    )}
+                                </button>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                                    This will update your AI's prediction system with the learned improvements
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
 

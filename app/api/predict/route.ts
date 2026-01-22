@@ -4,6 +4,7 @@ import { PredictionResponse } from '@/lib/types';
 import { predictionRequestSchema, validateRequest } from '@/lib/validation';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { createClient } from '@/lib/supabase/server';
+import { getSystemPrompt } from '@/lib/promptLoader';
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,8 +55,11 @@ export async function POST(request: NextRequest) {
 
     const { question, bankroll, isParlay, inputMode, images, manualInput } = validation.data;
 
+    // Load user's custom prompt or use default
+    const userPrompt = user?.id ? await getSystemPrompt(user.id) : SYSTEM_PROMPT;
+
     // Prepare the prompt
-    const basePrompt = isParlay ? `${SYSTEM_PROMPT}\n\n${PARLAY_PROMPT_ADDITION}` : SYSTEM_PROMPT;
+    const basePrompt = isParlay ? `${userPrompt}\n\n${PARLAY_PROMPT_ADDITION}` : userPrompt;
 
     let taskDescription = '';
     if (inputMode === 'images') {
