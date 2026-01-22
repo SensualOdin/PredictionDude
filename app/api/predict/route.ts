@@ -1,42 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SYSTEM_PROMPT, PARLAY_PROMPT_ADDITION } from '@/lib/systemPrompt';
-import { PredictionRequest, PredictionResponse } from '@/lib/types';
+import { PredictionResponse } from '@/lib/types';
+import { predictionRequestSchema, validateRequest } from '@/lib/validation';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get user for rate limiting
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const identifier = user?.id || request.headers.get('x-forwarded-for') || 'anonymous';
+
+    // Check rate limit
+    const rateLimit = checkRateLimit(identifier, RATE_LIMITS.PREDICT);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimit.limit.toString(),
+            'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+            'X-RateLimit-Reset': rateLimit.reset.toString(),
+            'Retry-After': Math.ceil((rateLimit.reset - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
     // Check if API key is configured
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Google AI API key not configured. Please add GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file.' },
+        { error: 'API configuration error' },
         { status: 500 }
       );
     }
 
-    const body: PredictionRequest = await request.json();
-    const { question, bankroll, isParlay, inputMode, images, manualInput } = body;
+    // Parse and validate request body
+    const body = await request.json();
+    const validation = validateRequest(predictionRequestSchema, body);
 
-    // Validation
-    if (!question || !bankroll) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: question or bankroll' },
+        { error: validation.error },
         { status: 400 }
       );
     }
 
-    if (inputMode === 'images' && (!images || images.length === 0)) {
-      return NextResponse.json(
-        { error: 'Please upload at least one image' },
-        { status: 400 }
-      );
-    }
-
-    if (inputMode === 'manual' && !manualInput?.trim()) {
-      return NextResponse.json(
-        { error: 'Please provide betting options text' },
-        { status: 400 }
-      );
-    }
+    const { question, bankroll, isParlay, inputMode, images, manualInput } = validation.data;
 
     // Prepare the prompt
     const basePrompt = isParlay ? `${SYSTEM_PROMPT}\n\n${PARLAY_PROMPT_ADDITION}` : SYSTEM_PROMPT;
@@ -70,7 +86,7 @@ TASK: ${taskDescription}
 Remember: Output ONLY valid JSON matching the schema provided in the system prompt.`;
 
     // Build content parts for Gemini API
-    const parts: any[] = [];
+    const parts: Array<{ inlineData?: { mimeType: string; data: string }; text?: string }> = [];
 
     // Add images if in image mode
     if (inputMode === 'images' && images) {
@@ -117,12 +133,7 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
       const errorText = await geminiResponse.text();
       console.error('Gemini API Error:', geminiResponse.status, errorText);
       return NextResponse.json(
-        {
-          error: 'Gemini API call failed',
-          status: geminiResponse.status,
-          details: errorText.substring(0, 500),
-          hint: 'Check if your API key is valid at https://aistudio.google.com/app/apikey'
-        },
+        { error: 'AI service error. Please try again.' },
         { status: 500 }
       );
     }
@@ -134,12 +145,9 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
     const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
-      console.error('No text in Gemini response:', JSON.stringify(geminiData, null, 2));
+      console.error('No text in Gemini response');
       return NextResponse.json(
-        {
-          error: 'No response text from Gemini',
-          geminiResponse: geminiData
-        },
+        { error: 'Invalid AI response. Please try again.' },
         { status: 500 }
       );
     }
@@ -160,19 +168,21 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
       console.error('JSON Parse Error:', parseError);
       console.error('Raw response:', text.substring(0, 1000));
       return NextResponse.json(
-        {
-          error: 'Failed to parse AI response as JSON',
-          rawResponse: text.substring(0, 1000)
-        },
+        { error: 'Failed to parse AI response. Please try again.' },
         { status: 500 }
       );
     }
 
     // Calculate actual dollar amounts for each option
-    const optionsWithAmounts = predictionData.options.map(option => ({
-      ...option,
-      recommendedAmount: (option.recommendedStake / 100) * bankroll,
-    }));
+    // Validate that recommendedStake is within bounds (0-100)
+    const optionsWithAmounts = predictionData.options.map(option => {
+      const stake = Math.max(0, Math.min(100, option.recommendedStake || 0));
+      return {
+        ...option,
+        recommendedStake: stake,
+        recommendedAmount: (stake / 100) * bankroll,
+      };
+    });
 
     return NextResponse.json({
       ...predictionData,
@@ -184,11 +194,7 @@ Remember: Output ONLY valid JSON matching the schema provided in the system prom
   } catch (error) {
     console.error('Prediction API Error:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to generate prediction',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      },
+      { error: 'Failed to generate prediction. Please try again.' },
       { status: 500 }
     );
   }

@@ -16,6 +16,7 @@ interface Prediction {
     created_at: string;
     settled_at: string | null;
     prediction_options: PredictionOption[];
+    screenshots?: string[] | null;
 }
 
 interface PredictionOption {
@@ -51,6 +52,10 @@ export default function HistoryPage() {
         { name: '', odds: '' },
         { name: '', odds: '' }
     ]);
+
+    // Screenshot upload state
+    const [screenshots, setScreenshots] = useState<string[]>([]);
+    const [extracting, setExtracting] = useState(false);
 
     const router = useRouter();
     const supabase = createClient();
@@ -106,6 +111,98 @@ export default function HistoryPage() {
         }, 1);
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        const newImages: string[] = [];
+        let filesProcessed = 0;
+
+        // Read all files first
+        Array.from(files).forEach(file => {
+            if (file.size > 10 * 1024 * 1024) {
+                setAddError('Each image must be under 10MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                newImages.push(reader.result as string);
+                filesProcessed++;
+
+                if (filesProcessed === files.length) {
+                    setScreenshots(prev => [...prev, ...newImages]);
+                    // Auto-extract bet info after images are loaded
+                    extractBetInfo([...screenshots, ...newImages]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const extractBetInfo = async (images: string[]) => {
+        if (images.length === 0) return;
+
+        setExtracting(true);
+        setAddError(null);
+
+        try {
+            const response = await fetch('/api/bets/extract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ images }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to extract bet info');
+            }
+
+            // Auto-fill the form based on extracted data
+            if (data.isParlay && data.options.length >= 2) {
+                setIsParlay(true);
+                setParlayLegs(data.options.map((opt: any) => ({
+                    name: opt.name,
+                    odds: opt.odds.toString()
+                })));
+            } else if (data.options.length === 1) {
+                setIsParlay(false);
+                setCustomBet(prev => ({
+                    ...prev,
+                    betName: data.options[0].name,
+                    odds: data.options[0].odds.toString()
+                }));
+            }
+
+            // Fill stake if extracted
+            if (data.stake) {
+                setCustomBet(prev => ({
+                    ...prev,
+                    stake: data.stake.toString()
+                }));
+            }
+
+            // Fill notes if provided
+            if (data.notes) {
+                setCustomBet(prev => ({
+                    ...prev,
+                    notes: data.notes
+                }));
+            }
+
+        } catch (error) {
+            console.error('Extraction error:', error);
+            setAddError(error instanceof Error ? error.message : 'Failed to extract bet info. You can still fill in manually.');
+        } finally {
+            setExtracting(false);
+        }
+    };
+
+    const removeScreenshot = (index: number) => {
+        setScreenshots(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleAddCustomBet = async (e: React.FormEvent) => {
         e.preventDefault();
         setAddingBet(true);
@@ -122,14 +219,16 @@ export default function HistoryPage() {
                     legs: parlayLegs.map(l => ({
                         name: l.name,
                         odds: parseFloat(l.odds)
-                    }))
+                    })),
+                    screenshots: screenshots
                 }
                 : {
                     betName: customBet.betName,
                     odds: parseFloat(customBet.odds),
                     stake: parseFloat(customBet.stake),
                     notes: customBet.notes,
-                    isParlay: false
+                    isParlay: false,
+                    screenshots: screenshots
                 };
 
             const response = await fetch('/api/bets/custom', {
@@ -147,6 +246,7 @@ export default function HistoryPage() {
             // Reset form and refresh
             setCustomBet({ betName: '', odds: '', stake: '', notes: '' });
             setParlayLegs([{ name: '', odds: '' }, { name: '', odds: '' }]);
+            setScreenshots([]);
             setIsParlay(false);
             setShowAddForm(false);
             fetchPredictions();
@@ -406,6 +506,94 @@ export default function HistoryPage() {
                                 </div>
                             </div>
 
+                            {/* Screenshot Upload */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        📸 Screenshots {extracting && '(Extracting bet info...)'}
+                                    </label>
+                                    {screenshots.length > 0 && !extracting && (
+                                        <button
+                                            type="button"
+                                            onClick={() => extractBetInfo(screenshots)}
+                                            className="text-xs px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all"
+                                        >
+                                            🔄 Re-extract Info
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="space-y-3">
+                                    {/* Upload Button */}
+                                    <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
+                                        extracting
+                                            ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                            : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-gray-700/30'
+                                    }`}>
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            {extracting ? (
+                                                <>
+                                                    <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mb-2"></div>
+                                                    <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                                                        Extracting bet information...
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                        AI is reading your screenshots
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-8 h-8 mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                        <span className="font-semibold">Click to upload</span> or drag and drop
+                                                    </p>
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500">PNG, JPG, WEBP (max 10MB each)</p>
+                                                    <p className="text-xs text-blue-500 dark:text-blue-400 mt-1 font-medium">
+                                                        ✨ Auto-fills bet info from screenshots
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handleImageUpload}
+                                            disabled={extracting}
+                                        />
+                                    </label>
+
+                                    {/* Preview Uploaded Screenshots */}
+                                    {screenshots.length > 0 && (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {screenshots.map((img, idx) => (
+                                                <div key={idx} className="relative group">
+                                                    <img
+                                                        src={img}
+                                                        alt={`Screenshot ${idx + 1}`}
+                                                        className="w-full h-32 object-cover rounded-lg border border-gray-300 dark:border-gray-600"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeScreenshot(idx)}
+                                                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                    <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-white text-xs rounded">
+                                                        {idx + 1}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {addError && (
                                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                                     <p className="text-sm text-red-800 dark:text-red-300">{addError}</p>
@@ -552,6 +740,35 @@ export default function HistoryPage() {
                                 {/* Expanded Content */}
                                 {expandedId === pred.id && (
                                     <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-4">
+                                        {/* Screenshots */}
+                                        {pred.screenshots && pred.screenshots.length > 0 && (
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    📸 Bet Screenshots ({pred.screenshots.length})
+                                                </p>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                    {pred.screenshots.map((img, idx) => (
+                                                        <div key={idx} className="relative group cursor-pointer">
+                                                            <img
+                                                                src={img}
+                                                                alt={`Bet screenshot ${idx + 1}`}
+                                                                className="w-full h-40 object-cover rounded-lg border border-gray-300 dark:border-gray-600 hover:ring-2 hover:ring-blue-500 transition-all"
+                                                                onClick={() => window.open(img, '_blank')}
+                                                            />
+                                                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/70 text-white text-xs rounded font-medium">
+                                                                {idx + 1}
+                                                            </div>
+                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-all flex items-center justify-center">
+                                                                <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Reasoning/Notes */}
                                         {pred.reasoning && (
                                             <div>
