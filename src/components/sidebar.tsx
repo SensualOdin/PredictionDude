@@ -46,7 +46,7 @@ export function Sidebar() {
     <TooltipProvider>
       <aside
         className={cn(
-          "group/sidebar fixed left-0 top-0 z-40 flex h-screen w-16 flex-col border-r border-zinc-800/60 bg-zinc-950 transition-all duration-300 ease-in-out hover:w-60"
+          "group/sidebar fixed left-0 top-0 z-40 hidden h-screen w-16 flex-col border-r border-zinc-800/60 bg-zinc-950 transition-all duration-300 ease-in-out hover:w-60 md:flex"
         )}
       >
         {/* Logo */}
