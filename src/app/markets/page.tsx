@@ -58,7 +58,7 @@ export default function MarketsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
             Markets
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
@@ -77,13 +77,13 @@ export default function MarketsPage() {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-3 px-3 scrollbar-hide">
         {categories.map((category) => (
           <button
             key={category}
             onClick={() => setActiveCategory(category)}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition-all whitespace-nowrap",
+              "shrink-0 rounded-lg px-3 py-1.5 min-h-[44px] text-sm font-medium transition-all whitespace-nowrap",
               activeCategory === category
                 ? "bg-emerald-500/15 text-emerald-400"
                 : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
@@ -139,11 +139,11 @@ export default function MarketsPage() {
             const closeTime = (market.close_time ?? market.expected_expiration ?? null) as string | null;
 
             return (
-              <Link key={ticker} href={`/markets/${encodeURIComponent(ticker)}`}>
+              <Link key={ticker} href={`/markets/${encodeURIComponent(ticker)}`} className="min-h-[44px]">
                 <Card className="border-zinc-800/60 bg-zinc-900/50 hover:bg-zinc-900/80 hover:border-zinc-700/60 transition-all cursor-pointer h-full">
                   <CardContent className="space-y-3 pt-5">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-white leading-snug line-clamp-2">
+                      <p className="text-sm font-medium text-white leading-snug line-clamp-2 min-w-0">
                         {title}
                       </p>
                       <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px] shrink-0 capitalize">
