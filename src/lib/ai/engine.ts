@@ -35,7 +35,7 @@ export interface HitMissAnalysis {
 // ---- Constants ------------------------------------------------------------
 
 const MODEL = "claude-sonnet-4-20250514";
-const MAX_TOKENS = 1024;
+const MAX_TOKENS = 4096;
 
 // ---- Helpers --------------------------------------------------------------
 
@@ -116,22 +116,45 @@ export class AIEngine {
     try {
       const prompt = buildMarketAnalysisPrompt(params);
 
-      const response = await this.client.messages.create({
+      const webSearchTool = {
+        type: "web_search_20250305" as const,
+        name: "web_search" as const,
+        max_uses: 3,
+      };
+
+      let response = await this.client.messages.create({
         model: MODEL,
         max_tokens: MAX_TOKENS,
         messages: [{ role: "user", content: prompt }],
+        tools: [webSearchTool],
       });
 
-      // Extract the text content from the response
-      const textBlock = response.content.find(
-        (block) => block.type === "text",
+      // Handle pause_turn: Claude may pause mid-search and need a nudge
+      while (response.stop_reason === "pause_turn") {
+        response = await this.client.messages.create({
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          messages: [
+            { role: "user", content: prompt },
+            { role: "assistant", content: response.content },
+            { role: "user", content: "Please continue your analysis." },
+          ],
+          tools: [webSearchTool],
+        });
+      }
+
+      // Extract the LAST text block (Claude puts final JSON after search results)
+      const textBlocks = response.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === "text",
       );
-      if (!textBlock || textBlock.type !== "text") {
+      const lastTextBlock = textBlocks[textBlocks.length - 1];
+
+      if (!lastTextBlock) {
         console.error("[AIEngine] No text block in Claude response");
         return null;
       }
 
-      const parsed = extractJSON<unknown>(textBlock.text);
+      const parsed = extractJSON<unknown>(lastTextBlock.text);
       return validateAIAnalysis(parsed);
     } catch (error) {
       console.error("[AIEngine] analyzeMarket failed:", error);

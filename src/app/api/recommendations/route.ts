@@ -103,7 +103,6 @@ export async function POST(request: NextRequest) {
       volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
       close_time: market.close_time ?? market.expected_expiration ?? "",
       orderbook_summary: orderbookSummary,
-      external_context: "",
       strategy_rules: (activeStrategy?.rules as Record<string, unknown>) ?? {},
       historical_performance: {
         category_win_rate: null,

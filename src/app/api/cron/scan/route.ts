@@ -121,7 +121,6 @@ export async function GET(request: NextRequest) {
             market.close_time ?? market.expected_expiration ?? "",
           ),
           orderbook_summary: orderbookSummary,
-          external_context: "",
           strategy_rules: strategyRules as Record<string, unknown>,
           historical_performance: {
             category_win_rate: null,

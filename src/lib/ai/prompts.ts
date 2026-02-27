@@ -12,7 +12,6 @@ export interface MarketAnalysisPromptParams {
   volume_24h: number;
   close_time: string;
   orderbook_summary: string;
-  external_context: string;
   strategy_rules: Record<string, unknown>;
   historical_performance: {
     category_win_rate: number | null;
@@ -46,7 +45,6 @@ export function buildMarketAnalysisPrompt(
     volume_24h,
     close_time,
     orderbook_summary,
-    external_context,
     strategy_rules,
     historical_performance,
   } = params;
@@ -60,7 +58,7 @@ export function buildMarketAnalysisPrompt(
     `- Confidence calibration: ${historical_performance.confidence_calibration || "no data yet"}`,
   ].join("\n");
 
-  return `You are a prediction market analyst. Analyze this market and recommend whether to bet YES or NO (or skip).
+  return `You are a prediction market analyst with access to web search. Use your web search tool to look up current news, weather forecasts, economic data, polling data, or any other real-time information relevant to this market before making your recommendation. Search for multiple angles to form a well-informed view.
 
 MARKET DATA:
 - Title: ${title}
@@ -70,16 +68,13 @@ MARKET DATA:
 - Close time: ${close_time}
 - Orderbook depth: ${orderbook_summary}
 
-EXTERNAL CONTEXT:
-${external_context || "No additional external context available."}
-
 CURRENT STRATEGY RULES:
 ${JSON.stringify(strategy_rules, null, 2)}
 
 HISTORICAL PERFORMANCE ON SIMILAR MARKETS:
 ${historicalBlock}
 
-Respond with ONLY valid JSON (no markdown, no code blocks):
+After completing your research, respond with ONLY valid JSON (no markdown, no code blocks):
 {
   "recommendation": "BUY_YES" | "BUY_NO" | "SKIP",
   "confidence": 0-100,
