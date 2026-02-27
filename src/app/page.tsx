@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -8,6 +8,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
   DollarSign,
@@ -15,8 +16,11 @@ import {
   Flame,
   Inbox,
   CircleDot,
+  Loader2,
 } from "lucide-react";
 import { PlaceBetDialog } from "@/components/place-bet-dialog";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL = 30_000;
 
@@ -48,6 +52,7 @@ function recommendationBadge(rec: string) {
 
 export default function DashboardPage() {
   const today = new Date();
+  const queryClient = useQueryClient();
 
   const { data: stats } = useQuery({
     queryKey: ["stats"],
@@ -65,6 +70,44 @@ export default function DashboardPage() {
     queryKey: ["activeBets"],
     queryFn: () => fetch("/api/bets?status=open&limit=10").then((r) => r.json()),
     refetchInterval: POLL_INTERVAL,
+  });
+
+  const { data: settingsData } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => fetch("/api/settings").then((r) => r.json()),
+  });
+
+  const executeBet = useMutation({
+    mutationFn: async (data: {
+      marketTicker: string;
+      side: string;
+      contracts: number;
+      entryPrice: number;
+      mode: string;
+      recommendationId: string;
+    }) => {
+      const res = await fetch("/api/bets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to place bet");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["activeBets"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["bets"] });
+      toast.success(
+        `Placed ${variables.side.toUpperCase()} x ${variables.contracts} on ${variables.marketTicker} (${variables.mode})`
+      );
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
 
   const recommendations = Array.isArray(recsData) ? recsData : recsData?.recommendations ?? [];
@@ -181,7 +224,35 @@ export default function DashboardPage() {
                       </p>
                       <p className="text-xs text-zinc-600">confidence</p>
                     </div>
-                    <div className="w-full sm:w-auto shrink-0">
+                    <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          executeBet.mutate({
+                            marketTicker: (rec.marketTicker ?? rec.market_ticker) as string,
+                            side: rec.recommendation === "BUY_NO" ? "no" : "yes",
+                            contracts: (rec.suggestedSize as number) ?? 10,
+                            entryPrice: 0.5,
+                            mode: settingsData?.tradingMode ?? "paper",
+                            recommendationId: rec.id as string,
+                          })
+                        }
+                        disabled={executeBet.isPending}
+                        className={cn(
+                          "font-semibold",
+                          settingsData?.tradingMode === "real"
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        )}
+                      >
+                        {executeBet.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : settingsData?.tradingMode === "real" ? (
+                          "Execute (Real $)"
+                        ) : (
+                          "Execute"
+                        )}
+                      </Button>
                       <PlaceBetDialog
                         marketTicker={(rec.marketTicker ?? rec.market_ticker) as string}
                         marketTitle={(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
