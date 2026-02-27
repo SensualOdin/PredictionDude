@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Providers } from "@/lib/providers";
 import { Toaster } from "sonner";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -14,6 +15,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Kalshi AI Trader",
   description: "AI-powered prediction market assistant",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -27,6 +29,7 @@ export default function RootLayout({
         className={`${inter.variable} font-sans antialiased bg-zinc-950 text-zinc-100`}
       >
         <Providers>
+          <ServiceWorkerRegister />
           <div className="flex min-h-screen">
             <Sidebar />
             <main className="flex-1 pl-0 pb-14 md:pl-16 md:pb-0">
