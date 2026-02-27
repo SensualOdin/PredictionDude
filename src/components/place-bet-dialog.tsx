@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,17 @@ export function PlaceBetDialog({
   const [contracts, setContracts] = useState(suggestedContracts ?? 10);
   const [mode, setMode] = useState<"paper" | "real">("paper");
   const queryClient = useQueryClient();
+
+  const { data: settingsData } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => fetch("/api/settings").then((r) => r.json()),
+  });
+
+  useEffect(() => {
+    if (settingsData?.tradingMode) {
+      setMode(settingsData.tradingMode as "paper" | "real");
+    }
+  }, [settingsData?.tradingMode]);
 
   const entryPrice = side === "yes" ? currentYesPrice : 1 - currentYesPrice;
   const totalCost = entryPrice * contracts;
