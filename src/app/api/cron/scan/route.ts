@@ -123,8 +123,16 @@ async function runScan() {
     const [userSettings] = await db.select().from(settings).limit(1);
     const minConfidenceThreshold = userSettings?.minConfidenceThreshold ?? 75;
 
-    const strategyRules: StrategyRules =
-      (activeStrategy?.rules as StrategyRules) ?? {};
+    // Strategy rules may be nested under a "filters" key or flat — normalize
+    const rawRules = (activeStrategy?.rules ?? {}) as Record<string, unknown>;
+    const filters = (rawRules.filters ?? rawRules) as Record<string, unknown>;
+    const strategyRules: StrategyRules = {
+      min_volume_24h: filters.min_volume_24h as number | undefined,
+      min_yes_price: filters.min_yes_price as number | undefined,
+      max_yes_price: filters.max_yes_price as number | undefined,
+      min_hours_until_close: (filters.min_hours_until_close ?? filters.min_time_to_expiration_hours) as number | undefined,
+      categories: ((rawRules.categories as Record<string, unknown>)?.allowed as string[]) ?? undefined,
+    };
 
     // Filter markets against strategy rules
     const eligible = kalshiMarkets.filter((m) =>
