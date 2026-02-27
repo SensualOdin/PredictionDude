@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { markets, recommendations, settings, strategies } from "@/lib/db/schema";
+import { bets, markets, recommendations, settings, strategies } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
 import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
+import { categorizeMarket } from "@/lib/categorize";
+
+// Only scan these categories — "mentions" (will X say/mention Y) and sports bets
+const ALLOWED_CATEGORIES = new Set(["mentions", "sports"]);
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -67,6 +71,11 @@ function passesStrategyFilters(
 // against the active strategy, runs AI analysis, and stores recommendations.
 // ---------------------------------------------------------------------------
 
+// POST /api/cron/scan — Manual trigger (no auth required, user-initiated)
+export async function POST() {
+  return runScan();
+}
+
 export async function GET(request: NextRequest) {
   // Auth check — skip if CRON_SECRET is not configured (allows local testing)
   const cronSecret = process.env.CRON_SECRET;
@@ -77,6 +86,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  return runScan();
+}
+
+async function runScan() {
+
   try {
     // Fetch all open markets from Kalshi
     const marketsResponse = await kalshi.getMarkets({
@@ -84,8 +98,19 @@ export async function GET(request: NextRequest) {
       limit: 200,
     });
 
-    const kalshiMarkets: Record<string, unknown>[] =
+    const rawMarkets: Record<string, unknown>[] =
       marketsResponse.markets ?? [];
+
+    // Categorize each market and keep only mentions + sports
+    for (const m of rawMarkets) {
+      m.category = categorizeMarket(
+        String(m.title ?? ""),
+        m.event_ticker as string | null,
+      );
+    }
+    const kalshiMarkets = rawMarkets.filter((m) =>
+      ALLOWED_CATEGORIES.has(String(m.category)),
+    );
 
     // Fetch the active strategy
     const [activeStrategy] = await db
@@ -106,9 +131,15 @@ export async function GET(request: NextRequest) {
       passesStrategyFilters(m, strategyRules),
     );
 
-    let recommendationsCreated = 0;
+    // Cap at 5 markets per scan to stay within Vercel's 300s function timeout
+    // (~30s per AI analysis with web search = ~150s for 5 markets)
+    const MAX_MARKETS_PER_SCAN = 5;
+    const toAnalyze = eligible.slice(0, MAX_MARKETS_PER_SCAN);
 
-    for (const market of eligible) {
+    let recommendationsCreated = 0;
+    let betsPlaced = 0;
+
+    for (const market of toAnalyze) {
       const ticker = String(market.ticker);
 
       try {
@@ -177,12 +208,30 @@ export async function GET(request: NextRequest) {
           dataSources: analysis.data_sources,
         }).returning();
 
-        // Send push if confidence meets threshold
+        // Auto-place paper bet + send push if confidence meets threshold
         if (analysis.confidence >= minConfidenceThreshold && analysis.recommendation !== "SKIP") {
+          const side = analysis.recommendation === "BUY_YES" ? "yes" : "no";
+          const entryPrice = Number(market.yes_price ?? market.yes_bid ?? 0);
+          const contracts = analysis.suggested_size ?? 1;
+
+          await db.insert(bets).values({
+            marketTicker: ticker,
+            recommendationId: rec.id,
+            mode: "paper",
+            side,
+            action: "buy",
+            entryPrice: entryPrice.toFixed(4),
+            contracts,
+            totalCost: (entryPrice * contracts).toFixed(4),
+            status: "open",
+          });
+
+          betsPlaced++;
+
           await sendPushNotification(
             {
-              title: `New Pick: ${analysis.confidence}% confidence`,
-              body: `${String(market.title)} — ${analysis.recommendation === "BUY_YES" ? "YES" : "NO"}`,
+              title: `Auto-bet: ${analysis.confidence}% confidence`,
+              body: `${String(market.title)} — ${side.toUpperCase()} x${contracts}`,
               url: `/markets/${ticker}`,
             },
             { recommendationId: rec.id, type: "new_opportunity" }
@@ -203,7 +252,9 @@ export async function GET(request: NextRequest) {
       success: true,
       marketsScanned: kalshiMarkets.length,
       marketsEligible: eligible.length,
+      marketsAnalyzed: toAnalyze.length,
       recommendationsCreated,
+      betsPlaced,
       strategyUsed: activeStrategy?.name ?? "default (no active strategy)",
     });
   } catch (error) {

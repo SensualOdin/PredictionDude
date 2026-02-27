@@ -17,6 +17,7 @@ import {
   Inbox,
   CircleDot,
   Loader2,
+  Radar,
 } from "lucide-react";
 import { PlaceBetDialog } from "@/components/place-bet-dialog";
 import { toast } from "sonner";
@@ -75,6 +76,42 @@ export default function DashboardPage() {
   const { data: settingsData } = useQuery({
     queryKey: ["settings"],
     queryFn: () => fetch("/api/settings").then((r) => r.json()),
+  });
+
+  const runScan = useMutation({
+    mutationFn: async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180_000); // 3 min client timeout
+      try {
+        const res = await fetch("/api/cron/scan", {
+          method: "POST",
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? "Scan failed");
+        }
+        return res.json();
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["activeBets"] });
+      toast.success(
+        `Scanned ${data.marketsScanned} markets, analyzed ${data.marketsAnalyzed}, ${data.recommendationsCreated} new picks`
+      );
+    },
+    onError: (error: Error) => {
+      if (error.name === "AbortError") {
+        toast.error("Scan timed out — try again or check results later");
+        queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+      } else {
+        toast.error(error.message);
+      }
+    },
   });
 
   const executeBet = useMutation({
@@ -151,11 +188,30 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-zinc-400">{formatDate(today)}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-zinc-400">{formatDate(today)}</p>
+        </div>
+        <Button
+          onClick={() => runScan.mutate()}
+          disabled={runScan.isPending}
+          className="bg-violet-600 hover:bg-violet-700 text-white font-semibold min-h-[44px]"
+        >
+          {runScan.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Scanning...
+            </>
+          ) : (
+            <>
+              <Radar className="mr-2 h-4 w-4" />
+              Scan Now
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Stat Cards */}

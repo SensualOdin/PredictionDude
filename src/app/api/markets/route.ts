@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kalshi } from "@/lib/kalshi";
+import { categorizeMarket } from "@/lib/categorize";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +17,16 @@ export async function GET(request: NextRequest) {
 
     const data = await kalshi.getMarkets(params);
 
-    return NextResponse.json(data);
+    // Inject inferred category since Kalshi API doesn't provide one
+    const markets = (data.markets ?? []).map((m: Record<string, unknown>) => ({
+      ...m,
+      category: categorizeMarket(
+        String(m.title ?? ""),
+        m.event_ticker as string | null,
+      ),
+    }));
+
+    return NextResponse.json({ ...data, markets });
   } catch (error) {
     console.error("[API] GET /api/markets failed:", error);
     return NextResponse.json(

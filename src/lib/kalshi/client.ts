@@ -7,7 +7,13 @@ import crypto from "crypto";
 const DEMO_BASE_URL = "https://demo-api.kalshi.co/trade-api/v2";
 const PROD_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2";
 
-function getBaseUrl(): string {
+/** Production URL for reading real market data. */
+function getReadBaseUrl(): string {
+  return PROD_BASE_URL;
+}
+
+/** Trading URL — respects KALSHI_ENV so trades stay on demo unless explicitly switched. */
+function getTradeBaseUrl(): string {
   return process.env.KALSHI_ENV === "production"
     ? PROD_BASE_URL
     : DEMO_BASE_URL;
@@ -138,8 +144,9 @@ export class KalshiClient {
     method: "GET" | "POST" | "DELETE" | "PUT" | "PATCH",
     path: string,
     body?: Record<string, unknown>,
+    options?: { trade?: boolean },
   ): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = options?.trade ? getTradeBaseUrl() : getReadBaseUrl();
     const url = `${baseUrl}${path}`;
 
     // The signature must be computed over the path *without* query parameters.
@@ -281,10 +288,10 @@ export class KalshiClient {
   // Portfolio endpoints (auth required)
   // -----------------------------------------------------------------------
 
-  /** Place a new order. */
+  /** Place a new order. Uses trade URL (demo unless KALSHI_ENV=production). */
   async placeOrder(order: PlaceOrderBody): Promise<KalshiResponse> {
     this.requireCredentials();
-    return this.request("POST", "/portfolio/orders", order as unknown as Record<string, unknown>);
+    return this.request("POST", "/portfolio/orders", order as unknown as Record<string, unknown>, { trade: true });
   }
 
   /** Cancel an existing order by its ID. */
@@ -293,6 +300,8 @@ export class KalshiClient {
     return this.request(
       "DELETE",
       `/portfolio/orders/${encodeURIComponent(orderId)}`,
+      undefined,
+      { trade: true },
     );
   }
 
@@ -302,13 +311,13 @@ export class KalshiClient {
     const qs = this.toQueryString(
       params as Record<string, string | number | undefined>,
     );
-    return this.request("GET", `/portfolio/orders${qs}`);
+    return this.request("GET", `/portfolio/orders${qs}`, undefined, { trade: true });
   }
 
   /** Get all current positions. */
   async getPositions(): Promise<KalshiResponse> {
     this.requireCredentials();
-    return this.request("GET", "/portfolio/positions");
+    return this.request("GET", "/portfolio/positions", undefined, { trade: true });
   }
 
   /** List fills (executed trades) with optional filters. */
@@ -317,13 +326,13 @@ export class KalshiClient {
     const qs = this.toQueryString(
       params as Record<string, string | number | undefined>,
     );
-    return this.request("GET", `/portfolio/fills${qs}`);
+    return this.request("GET", `/portfolio/fills${qs}`, undefined, { trade: true });
   }
 
   /** Get the current account balance. */
   async getBalance(): Promise<KalshiResponse> {
     this.requireCredentials();
-    return this.request("GET", "/portfolio/balance");
+    return this.request("GET", "/portfolio/balance", undefined, { trade: true });
   }
 }
 
