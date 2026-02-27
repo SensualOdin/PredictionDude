@@ -5,3 +5,4 @@ export type {
   MarketAnalysisPromptParams,
   HitMissAnalysisPromptParams,
 } from "./prompts";
+export { getHistoricalPerformance } from "./performance";

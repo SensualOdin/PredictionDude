@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { markets, recommendations, strategies } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
-import { aiEngine } from "@/lib/ai";
+import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -122,10 +122,7 @@ export async function GET(request: NextRequest) {
           ),
           orderbook_summary: orderbookSummary,
           strategy_rules: strategyRules as Record<string, unknown>,
-          historical_performance: {
-            category_win_rate: null,
-            confidence_calibration: "no data yet",
-          },
+          historical_performance: await getHistoricalPerformance(String(market.category ?? "unknown")),
         });
 
         if (!analysis) continue;
