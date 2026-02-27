@@ -7,8 +7,17 @@ import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
 import { categorizeMarket } from "@/lib/categorize";
 
-// Only scan these categories — "mentions" (will X say/mention Y) and sports bets
-const ALLOWED_CATEGORIES = new Set(["mentions", "sports"]);
+// Kalshi event categories to scan (these are Kalshi's native categories)
+const KALSHI_CATEGORIES = ["Sports"];
+
+// Series tickers for mention-type markets (ephemeral, appear when events scheduled)
+const MENTION_SERIES = [
+  "KXTRUMPMENTION",
+  "KXTRUMPMENTIONB",
+  "KXTRUMPMENTIONC",
+  "KXBIDENMENTION",
+  "KXSOTUMENTION",
+];
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -35,8 +44,8 @@ function passesStrategyFilters(
     if (volume < rules.min_volume_24h) return false;
   }
 
-  // Price range filter (yes_price between min and max)
-  const yesPrice = Number(market.yes_price ?? market.yes_bid ?? 0);
+  // Price range filter — Kalshi returns cents (0-99), strategy uses decimals (0-1)
+  const yesPrice = Number(market.yes_bid ?? market.yes_ask ?? 0) / 100;
 
   if (rules.min_yes_price !== undefined && yesPrice < rules.min_yes_price) {
     return false;
@@ -54,7 +63,7 @@ function passesStrategyFilters(
 
   // Expiration filter -- market must close at least N hours from now
   if (rules.min_hours_until_close !== undefined) {
-    const closeTime = market.close_time ?? market.expected_expiration;
+    const closeTime = market.close_time ?? market.expected_expiration_time;
     if (closeTime) {
       const hoursUntilClose =
         (new Date(closeTime as string).getTime() - Date.now()) / 3_600_000;
@@ -92,32 +101,56 @@ export async function GET(request: NextRequest) {
 async function runScan() {
 
   try {
-    // Fetch all open markets from Kalshi
-    const marketsResponse = await kalshi.getMarkets({
-      status: "open",
-      limit: 200,
-    });
+    // ---- Fetch sports events via Kalshi's events API ----
+    const allMarkets: Record<string, unknown>[] = [];
 
-    const rawMarkets: Record<string, unknown>[] =
-      marketsResponse.markets ?? [];
+    for (const cat of KALSHI_CATEGORIES) {
+      let cursor: string | undefined;
+      // Paginate up to 3 pages per category (600 events max)
+      for (let page = 0; page < 3; page++) {
+        const eventsResp = await kalshi.getEvents({
+          status: "open",
+          limit: 200,
+          category: cat,
+          with_nested_markets: true,
+          cursor,
+        });
+        const events: Record<string, unknown>[] = eventsResp.events ?? [];
+        for (const event of events) {
+          const eventMarkets = (event.markets ?? []) as Record<string, unknown>[];
+          for (const m of eventMarkets) {
+            m.category = categorizeMarket(
+              String(m.title ?? ""),
+              m.event_ticker as string | null,
+            );
+          }
+          allMarkets.push(...eventMarkets);
+        }
+        cursor = eventsResp.cursor as string | undefined;
+        if (!cursor || events.length < 200) break;
+      }
+    }
 
-    // Hard pre-filter: drop markets with no volume or no price (junk sub-markets)
-    const activeMarkets = rawMarkets.filter((m) => {
+    // ---- Fetch mention-type series (ephemeral, may not always exist) ----
+    for (const series of MENTION_SERIES) {
+      try {
+        const resp = await kalshi.getMarkets({ status: "open", limit: 100, series_ticker: series });
+        const mks = (resp.markets ?? []) as Record<string, unknown>[];
+        for (const m of mks) {
+          m.category = "mentions";
+        }
+        allMarkets.push(...mks);
+      } catch {
+        // Series may not exist — that's fine
+      }
+    }
+
+    // Drop junk: zero price AND zero volume
+    const kalshiMarkets = allMarkets.filter((m) => {
       const vol = Number(m.volume_24h ?? m.volume ?? 0);
-      const price = Number(m.yes_price ?? m.yes_bid ?? 0);
+      const price = Number(m.yes_bid ?? m.yes_ask ?? 0);
       return vol > 0 || price > 0;
     });
-
-    // Categorize each market and keep only mentions + sports
-    for (const m of activeMarkets) {
-      m.category = categorizeMarket(
-        String(m.title ?? ""),
-        m.event_ticker as string | null,
-      );
-    }
-    const kalshiMarkets = activeMarkets.filter((m) =>
-      ALLOWED_CATEGORIES.has(String(m.category)),
-    );
 
     // Fetch the active strategy
     const [activeStrategy] = await db
@@ -169,10 +202,10 @@ async function runScan() {
         const analysis = await aiEngine.analyzeMarket({
           title: String(market.title ?? ticker),
           category: String(market.category ?? "unknown"),
-          yes_price: Number(market.yes_price ?? market.yes_bid ?? 0),
+          yes_price: Number(market.yes_bid ?? market.yes_ask ?? 0) / 100,
           volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
           close_time: String(
-            market.close_time ?? market.expected_expiration ?? "",
+            market.close_time ?? market.expected_expiration_time ?? "",
           ),
           orderbook_summary: orderbookSummary,
           strategy_rules: strategyRules as Record<string, unknown>,
@@ -191,7 +224,7 @@ async function runScan() {
             eventTicker: (market.event_ticker as string) ?? null,
             seriesTicker: (market.series_ticker as string) ?? null,
             status: String(market.status ?? "open"),
-            yesPrice: String(market.yes_price ?? market.yes_bid ?? "0"),
+            yesPrice: (Number(market.yes_bid ?? market.yes_ask ?? 0) / 100).toFixed(4),
             volume24h: Number(market.volume_24h ?? market.volume ?? 0),
             closeTime: market.close_time
               ? new Date(market.close_time as string)
@@ -204,7 +237,7 @@ async function runScan() {
             set: {
               title: String(market.title ?? ticker),
               status: String(market.status ?? "open"),
-              yesPrice: String(market.yes_price ?? market.yes_bid ?? "0"),
+              yesPrice: (Number(market.yes_bid ?? market.yes_ask ?? 0) / 100).toFixed(4),
               volume24h: Number(market.volume_24h ?? market.volume ?? 0),
               rawData: market,
               lastSynced: new Date(),
@@ -226,7 +259,7 @@ async function runScan() {
         // Auto-place paper bet + send push if confidence meets threshold
         if (analysis.confidence >= minConfidenceThreshold && analysis.recommendation !== "SKIP") {
           const side = analysis.recommendation === "BUY_YES" ? "yes" : "no";
-          const entryPrice = Number(market.yes_price ?? market.yes_bid ?? 0);
+          const entryPrice = Number(market.yes_bid ?? market.yes_ask ?? 0) / 100;
           const contracts = analysis.suggested_size ?? 1;
 
           await db.insert(bets).values({

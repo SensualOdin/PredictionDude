@@ -60,6 +60,7 @@ export interface GetEventsParams {
   status?: string;
   series_ticker?: string;
   with_nested_markets?: boolean;
+  category?: string;
 }
 
 export interface GetCandlesticksParams {
