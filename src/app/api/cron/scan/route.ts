@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { markets, recommendations, strategies } from "@/lib/db/schema";
+import { markets, recommendations, settings, strategies } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
 import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
+import { sendPushNotification } from "@/lib/push";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -93,6 +94,10 @@ export async function GET(request: NextRequest) {
       .where(eq(strategies.status, "active"))
       .limit(1);
 
+    // Read confidence threshold from settings
+    const [userSettings] = await db.select().from(settings).limit(1);
+    const minConfidenceThreshold = userSettings?.minConfidenceThreshold ?? 75;
+
     const strategyRules: StrategyRules =
       (activeStrategy?.rules as StrategyRules) ?? {};
 
@@ -161,7 +166,7 @@ export async function GET(request: NextRequest) {
           });
 
         // Store the recommendation
-        await db.insert(recommendations).values({
+        const [rec] = await db.insert(recommendations).values({
           marketTicker: ticker,
           strategyId: activeStrategy?.id ?? null,
           recommendation: analysis.recommendation,
@@ -170,7 +175,19 @@ export async function GET(request: NextRequest) {
           reasoning: analysis.reasoning,
           keyRisk: analysis.key_risk,
           dataSources: analysis.data_sources,
-        });
+        }).returning();
+
+        // Send push if confidence meets threshold
+        if (analysis.confidence >= minConfidenceThreshold && analysis.recommendation !== "SKIP") {
+          await sendPushNotification(
+            {
+              title: `New Pick: ${analysis.confidence}% confidence`,
+              body: `${String(market.title)} — ${analysis.recommendation === "BUY_YES" ? "YES" : "NO"}`,
+              url: `/markets/${ticker}`,
+            },
+            { recommendationId: rec.id, type: "new_opportunity" }
+          );
+        }
 
         recommendationsCreated++;
       } catch (marketError) {

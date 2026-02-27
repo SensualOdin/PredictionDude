@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { analyses, bets, markets, recommendations } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
 import { aiEngine } from "@/lib/ai";
+import { sendPushNotification } from "@/lib/push";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -81,6 +82,16 @@ export async function GET(request: NextRequest) {
             resolvedAt: new Date(),
           })
           .where(eq(bets.id, bet.id));
+
+        // Send push notification for resolved bet
+        await sendPushNotification(
+          {
+            title: `Bet ${betWon ? "Won" : "Lost"}: ${market.title ?? bet.marketTicker}`,
+            body: `${betWon ? "+" : ""}$${Number(pnl).toFixed(2)} P&L`,
+            url: "/bets",
+          },
+          { recommendationId: bet.recommendationId ?? bet.id, type: "bet_resolved" }
+        );
 
         // Also update the local market record with settlement info
         await db
