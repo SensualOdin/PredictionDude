@@ -67,10 +67,13 @@ function passesStrategyFilters(
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  // Auth check
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Auth check — skip if CRON_SECRET is not configured (allows local testing)
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {
