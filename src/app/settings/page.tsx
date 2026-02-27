@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ToggleLeft,
   Bell,
+  BellRing,
   Clock,
   Globe,
   Loader2,
@@ -66,6 +67,9 @@ export default function SettingsPage() {
   const [kalshiEnv, setKalshiEnv] = useState<"demo" | "production">("demo");
   const [confidence, setConfidence] = useState<number[]>([75]);
   const [scanInterval, setScanInterval] = useState<string>("4");
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [notifPermission, setNotifPermission] =
+    useState<NotificationPermission>("default");
 
   // Sync local state when server data arrives
   useEffect(() => {
@@ -74,8 +78,16 @@ export default function SettingsPage() {
       setKalshiEnv(settings.kalshiEnv ?? "demo");
       setConfidence([settings.minConfidenceThreshold ?? 75]);
       setScanInterval(String(settings.scanIntervalHours ?? 4));
+      setPushEnabled(settings.pushEnabled ?? false);
     }
   }, [settings]);
+
+  // Check browser notification permission on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined") {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
 
   // ── Save mutation ─────────────────────────────────────────────────────
   const saveSettings = useMutation({
@@ -138,6 +150,41 @@ export default function SettingsPage() {
   const handleScanInterval = (value: string) => {
     setScanInterval(value);
     saveSettings.mutate({ scanIntervalHours: parseInt(value, 10) });
+  };
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const permission = await Notification.requestPermission();
+      setNotifPermission(permission);
+      if (permission !== "granted") {
+        toast.error("Notification permission denied");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      });
+
+      setPushEnabled(true);
+      saveSettings.mutate({
+        pushEnabled: true,
+        pushSubscription: subscription.toJSON(),
+      });
+    } else {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+      }
+
+      setPushEnabled(false);
+      saveSettings.mutate({
+        pushEnabled: false,
+        pushSubscription: null,
+      });
+    }
   };
 
   // ── Loading state ─────────────────────────────────────────────────────
@@ -289,6 +336,70 @@ export default function SettingsPage() {
                 Only receive alerts for picks above this confidence level
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Push Notifications ──────────────────────────────────────── */}
+        <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
+                <BellRing className="h-4 w-4 text-zinc-400" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-semibold text-zinc-200">
+                  Push Notifications
+                </CardTitle>
+                <CardDescription className="text-xs text-zinc-600">
+                  Receive alerts directly in your browser
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-zinc-800/60 bg-zinc-950/50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={pushEnabled}
+                  onCheckedChange={handlePushToggle}
+                  disabled={notifPermission === "denied"}
+                />
+                <div>
+                  <p className="text-sm font-medium text-zinc-300">
+                    Enable Push Notifications
+                  </p>
+                  <p className="text-xs text-zinc-600">
+                    Permission:{" "}
+                    <span
+                      className={
+                        notifPermission === "granted"
+                          ? "text-emerald-400"
+                          : notifPermission === "denied"
+                            ? "text-red-400"
+                            : "text-zinc-500"
+                      }
+                    >
+                      {notifPermission}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant="outline"
+                className={
+                  pushEnabled
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                    : "border-zinc-700/30 bg-zinc-800/10 text-zinc-500"
+                }
+              >
+                {pushEnabled ? "On" : "Off"}
+              </Badge>
+            </div>
+            {notifPermission === "denied" && (
+              <p className="text-xs text-red-400">
+                Notifications are blocked. Enable them in your browser settings.
+              </p>
+            )}
           </CardContent>
         </Card>
 
