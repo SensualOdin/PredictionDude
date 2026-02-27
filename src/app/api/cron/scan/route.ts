@@ -101,14 +101,21 @@ async function runScan() {
     const rawMarkets: Record<string, unknown>[] =
       marketsResponse.markets ?? [];
 
+    // Hard pre-filter: drop markets with no volume or no price (junk sub-markets)
+    const activeMarkets = rawMarkets.filter((m) => {
+      const vol = Number(m.volume_24h ?? m.volume ?? 0);
+      const price = Number(m.yes_price ?? m.yes_bid ?? 0);
+      return vol > 0 || price > 0;
+    });
+
     // Categorize each market and keep only mentions + sports
-    for (const m of rawMarkets) {
+    for (const m of activeMarkets) {
       m.category = categorizeMarket(
         String(m.title ?? ""),
         m.event_ticker as string | null,
       );
     }
-    const kalshiMarkets = rawMarkets.filter((m) =>
+    const kalshiMarkets = activeMarkets.filter((m) =>
       ALLOWED_CATEGORIES.has(String(m.category)),
     );
 
