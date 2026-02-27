@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -31,6 +32,15 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+
+  const { data: settingsData } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => fetch("/api/settings").then((r) => r.json()),
+    refetchInterval: 60_000,
+  });
+  const tradingMode = (settingsData?.tradingMode as string) ?? "paper";
+
+  const isRealMode = tradingMode === "real";
 
   return (
     <TooltipProvider>
@@ -99,12 +109,17 @@ export function Sidebar() {
         <div className="flex items-center gap-3 border-t border-zinc-800/60 px-4 py-4">
           <Badge
             variant="outline"
-            className="shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] uppercase tracking-wider"
+            className={cn(
+              "shrink-0 text-[10px] uppercase tracking-wider",
+              isRealMode
+                ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+            )}
           >
-            Paper
+            {isRealMode ? "Real" : "Paper"}
           </Badge>
           <span className="truncate text-xs text-zinc-500 opacity-0 transition-opacity duration-300 group-hover/sidebar:opacity-100">
-            Paper Trading
+            {isRealMode ? "Real Trading" : "Paper Trading"}
           </span>
         </div>
       </aside>
