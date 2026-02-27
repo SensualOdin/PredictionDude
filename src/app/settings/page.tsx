@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -8,10 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -20,22 +20,136 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
   ToggleLeft,
-  Key,
-  Brain,
   Bell,
   Clock,
+  Globe,
+  Loader2,
 } from "lucide-react";
 
-export default function SettingsPage() {
-  const [paperMode, setPaperMode] = useState(true);
-  const [confidence, setConfidence] = useState([75]);
-  const [scanSchedule, setScanSchedule] = useState("1h");
-  const [environment, setEnvironment] = useState("demo");
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
+interface SettingsData {
+  id: string;
+  tradingMode: "paper" | "real";
+  kalshiEnv: "demo" | "production";
+  minConfidenceThreshold: number;
+  scanIntervalHours: number;
+  pushEnabled: boolean;
+  pushSubscription: unknown;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function SettingsPage() {
+  const queryClient = useQueryClient();
+
+  // ── Server state ──────────────────────────────────────────────────────
+  const { data: settings, isLoading } = useQuery<SettingsData>({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings");
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      return res.json();
+    },
+  });
+
+  // ── Local state (mirrors server, updated optimistically) ──────────────
+  const [tradingMode, setTradingMode] = useState<"paper" | "real">("paper");
+  const [kalshiEnv, setKalshiEnv] = useState<"demo" | "production">("demo");
+  const [confidence, setConfidence] = useState<number[]>([75]);
+  const [scanInterval, setScanInterval] = useState<string>("4");
+
+  // Sync local state when server data arrives
+  useEffect(() => {
+    if (settings) {
+      setTradingMode(settings.tradingMode ?? "paper");
+      setKalshiEnv(settings.kalshiEnv ?? "demo");
+      setConfidence([settings.minConfidenceThreshold ?? 75]);
+      setScanInterval(String(settings.scanIntervalHours ?? 4));
+    }
+  }, [settings]);
+
+  // ── Save mutation ─────────────────────────────────────────────────────
+  const saveSettings = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("Settings saved");
+    },
+    onError: () => {
+      toast.error("Failed to save settings");
+    },
+  });
+
+  // ── Debounced save (for the slider) ───────────────────────────────────
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedSave = useCallback(
+    (data: Record<string, unknown>) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        saveSettings.mutate(data);
+      }, 500);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  // ── Change handlers ───────────────────────────────────────────────────
+  const handleTradingMode = (checked: boolean) => {
+    const mode = checked ? "real" : "paper";
+    setTradingMode(mode);
+    saveSettings.mutate({ tradingMode: mode });
+  };
+
+  const handleEnvironment = (value: string) => {
+    const env = value as "demo" | "production";
+    setKalshiEnv(env);
+    saveSettings.mutate({ kalshiEnv: env });
+  };
+
+  const handleConfidence = (value: number[]) => {
+    setConfidence(value);
+    debouncedSave({ minConfidenceThreshold: value[0] });
+  };
+
+  const handleScanInterval = (value: string) => {
+    setScanInterval(value);
+    saveSettings.mutate({ scanIntervalHours: parseInt(value, 10) });
+  };
+
+  // ── Loading state ─────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -44,12 +158,12 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Configure your trading environment and API connections
+          Configure your trading environment and preferences
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Trading Mode */}
+        {/* ── Trading Mode ───────────────────────────────────────────── */}
         <Card className="border-zinc-800/60 bg-zinc-900/50">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -70,15 +184,15 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between rounded-lg border border-zinc-800/60 bg-zinc-950/50 px-4 py-3">
               <div className="flex items-center gap-3">
                 <Switch
-                  checked={!paperMode}
-                  onCheckedChange={(checked) => setPaperMode(!checked)}
+                  checked={tradingMode === "real"}
+                  onCheckedChange={handleTradingMode}
                 />
                 <div>
                   <p className="text-sm font-medium text-zinc-300">
-                    {paperMode ? "Paper Trading" : "Real Trading"}
+                    {tradingMode === "paper" ? "Paper Trading" : "Real Trading"}
                   </p>
                   <p className="text-xs text-zinc-600">
-                    {paperMode
+                    {tradingMode === "paper"
                       ? "Simulated trades with no real money"
                       : "Live trading with real funds"}
                   </p>
@@ -87,18 +201,56 @@ export default function SettingsPage() {
               <Badge
                 variant="outline"
                 className={
-                  paperMode
+                  tradingMode === "paper"
                     ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
                     : "border-red-500/30 bg-red-500/10 text-red-400"
                 }
               >
-                {paperMode ? "Paper" : "Real"}
+                {tradingMode === "paper" ? "Paper" : "Real"}
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* ── Environment ────────────────────────────────────────────── */}
+        <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
+                <Globe className="h-4 w-4 text-zinc-400" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-semibold text-zinc-200">
+                  Environment
+                </CardTitle>
+                <CardDescription className="text-xs text-zinc-600">
+                  Kalshi API environment target
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label className="text-sm text-zinc-400">API Environment</Label>
+              <Select value={kalshiEnv} onValueChange={handleEnvironment}>
+                <SelectTrigger className="border-zinc-800 bg-zinc-950/50 text-zinc-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-zinc-800 bg-zinc-900">
+                  <SelectItem value="demo">Demo</SelectItem>
+                  <SelectItem value="production">Production</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-zinc-600">
+                {kalshiEnv === "demo"
+                  ? "Using Kalshi demo environment (no real money)"
+                  : "Using Kalshi production environment (real money)"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Notifications (Confidence Threshold) ───────────────────── */}
         <Card className="border-zinc-800/60 bg-zinc-900/50">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -117,17 +269,17 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <Label className="text-sm text-zinc-400">
                   Min Confidence Threshold
                 </Label>
-                <span className="text-sm font-mono font-medium text-emerald-400">
+                <span className="font-mono text-sm font-medium text-emerald-400">
                   {confidence[0]}%
                 </span>
               </div>
               <Slider
                 value={confidence}
-                onValueChange={setConfidence}
+                onValueChange={handleConfidence}
                 max={100}
                 min={50}
                 step={5}
@@ -140,100 +292,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Kalshi API */}
+        {/* ── Scan Schedule ──────────────────────────────────────────── */}
         <Card className="border-zinc-800/60 bg-zinc-900/50">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
-                <Key className="h-4 w-4 text-zinc-400" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold text-zinc-200">
-                  Kalshi API
-                </CardTitle>
-                <CardDescription className="text-xs text-zinc-600">
-                  Connect to your Kalshi account
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="kalshi-key" className="text-sm text-zinc-400">
-                API Key ID
-              </Label>
-              <Input
-                id="kalshi-key"
-                type="password"
-                placeholder="Enter your Kalshi API key"
-                className="border-zinc-800 bg-zinc-950/50 text-zinc-300 placeholder:text-zinc-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/20"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="kalshi-private-key" className="text-sm text-zinc-400">
-                Private Key
-              </Label>
-              <Textarea
-                id="kalshi-private-key"
-                placeholder="Paste your private key (PEM format)"
-                rows={4}
-                className="border-zinc-800 bg-zinc-950/50 text-zinc-300 font-mono text-xs placeholder:text-zinc-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/20 resize-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm text-zinc-400">Environment</Label>
-              <Select value={environment} onValueChange={setEnvironment}>
-                <SelectTrigger className="border-zinc-800 bg-zinc-950/50 text-zinc-300">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-zinc-800 bg-zinc-900">
-                  <SelectItem value="demo">Demo</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Claude AI */}
-        <Card className="border-zinc-800/60 bg-zinc-900/50">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
-                <Brain className="h-4 w-4 text-zinc-400" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold text-zinc-200">
-                  Claude AI
-                </CardTitle>
-                <CardDescription className="text-xs text-zinc-600">
-                  Connect the AI analysis engine
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="claude-key" className="text-sm text-zinc-400">
-                API Key
-              </Label>
-              <Input
-                id="claude-key"
-                type="password"
-                placeholder="sk-ant-..."
-                className="border-zinc-800 bg-zinc-950/50 text-zinc-300 placeholder:text-zinc-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/20"
-              />
-              <p className="text-xs text-zinc-600">
-                Your Anthropic API key for market analysis
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Scan Schedule */}
-        <Card className="border-zinc-800/60 bg-zinc-900/50 lg:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
@@ -250,29 +310,20 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-2">
-                <Label className="text-sm text-zinc-400">Scan Interval</Label>
-                <Select value={scanSchedule} onValueChange={setScanSchedule}>
-                  <SelectTrigger className="w-48 border-zinc-800 bg-zinc-950/50 text-zinc-300">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="border-zinc-800 bg-zinc-900">
-                    <SelectItem value="1h">Every 1 hour</SelectItem>
-                    <SelectItem value="2h">Every 2 hours</SelectItem>
-                    <SelectItem value="4h">Every 4 hours</SelectItem>
-                    <SelectItem value="6h">Every 6 hours</SelectItem>
-                    <SelectItem value="12h">Every 12 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="rounded-lg border border-zinc-800/60 bg-zinc-950/50 px-4 py-3">
-                <p className="text-xs text-zinc-600">Next scan</p>
-                <p className="text-sm font-medium text-zinc-400">
-                  Not scheduled
-                </p>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-zinc-400">Scan Interval</Label>
+              <Select value={scanInterval} onValueChange={handleScanInterval}>
+                <SelectTrigger className="w-48 border-zinc-800 bg-zinc-950/50 text-zinc-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-zinc-800 bg-zinc-900">
+                  <SelectItem value="1">Every 1 hour</SelectItem>
+                  <SelectItem value="2">Every 2 hours</SelectItem>
+                  <SelectItem value="4">Every 4 hours</SelectItem>
+                  <SelectItem value="6">Every 6 hours</SelectItem>
+                  <SelectItem value="12">Every 12 hours</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { Providers } from "@/lib/providers";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,6 +34,7 @@ export default function RootLayout({
               </div>
             </main>
           </div>
+          <Toaster theme="dark" richColors />
         </Providers>
       </body>
     </html>
