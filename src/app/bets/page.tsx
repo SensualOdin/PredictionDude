@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Card,
+  CardContent,
 } from "@/components/ui/card";
 import {
   Table,
@@ -76,7 +77,7 @@ export default function BetsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           Bet Tracker
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -90,19 +91,19 @@ export default function BetsPage() {
           <TabsList className="bg-zinc-900 border border-zinc-800/60">
             <TabsTrigger
               value="active"
-              className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
+              className="min-h-[44px] data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
             >
               Active
             </TabsTrigger>
             <TabsTrigger
               value="resolved"
-              className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
+              className="min-h-[44px] data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
             >
               Resolved
             </TabsTrigger>
             <TabsTrigger
               value="all"
-              className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
+              className="min-h-[44px] data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
             >
               All
             </TabsTrigger>
@@ -141,105 +142,155 @@ function BetsTable({ bets, isLoading }: { bets: Record<string, unknown>[]; isLoa
     );
   }
 
+  if (bets.length === 0) {
+    return (
+      <Card className="border-zinc-800/60 bg-zinc-900/50">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/60">
+              <ListX className="h-6 w-6 text-zinc-600" />
+            </div>
+            <p className="mt-3 text-sm text-zinc-500">
+              No bets to display
+            </p>
+            <Badge
+              variant="outline"
+              className="mt-2 border-zinc-700 text-zinc-600 text-[10px]"
+            >
+              Place a bet to get started
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="border-zinc-800/60 bg-zinc-900/50 overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-zinc-800/60 hover:bg-transparent">
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Market
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Side
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Entry
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Size
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Cost
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                P&L
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Status
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
-                Mode
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bets.length === 0 ? (
-              <TableRow className="border-zinc-800/60 hover:bg-transparent">
-                <TableCell colSpan={8} className="h-48">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/60">
-                      <ListX className="h-6 w-6 text-zinc-600" />
-                    </div>
-                    <p className="mt-3 text-sm text-zinc-500">
-                      No bets to display
-                    </p>
-                    <Badge
-                      variant="outline"
-                      className="mt-2 border-zinc-700 text-zinc-600 text-[10px]"
-                    >
-                      Place a bet to get started
-                    </Badge>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              bets.map((bet) => {
-                const badge = statusBadge(bet.status as string, bet.outcome as string | null);
-                return (
-                  <TableRow key={bet.id as string} className="border-zinc-800/60 hover:bg-zinc-800/30">
-                    <TableCell className="text-sm text-white max-w-[200px] truncate">
-                      {(bet.marketTitle ?? bet.marketTicker) as string}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn(
-                        "text-[10px]",
-                        bet.side === "yes"
-                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                          : "bg-red-500/20 text-red-400 border-red-500/30"
-                      )}>
-                        {(bet.side as string)?.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-zinc-300">
-                      ${Number(bet.entryPrice).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm text-zinc-300">
-                      {bet.contracts as number}
-                    </TableCell>
-                    <TableCell className="text-sm text-zinc-300">
-                      ${Number(bet.totalCost ?? 0).toFixed(2)}
-                    </TableCell>
-                    <TableCell className={cn("text-sm font-medium", pnlColor(bet.pnl as string | null))}>
-                      {formatPnl(bet.pnl as string | null)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn("text-[10px]", badge.className)}>
-                        {badge.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px] capitalize">
-                        {bet.mode as string}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+    <>
+      {/* Desktop table view */}
+      <div className="hidden sm:block">
+        <Card className="border-zinc-800/60 bg-zinc-900/50 overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-zinc-800/60 hover:bg-transparent">
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Market
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Side
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Entry
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Size
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Cost
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    P&L
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-zinc-500 text-xs uppercase tracking-wider font-medium">
+                    Mode
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bets.map((bet) => {
+                  const badge = statusBadge(bet.status as string, bet.outcome as string | null);
+                  return (
+                    <TableRow key={bet.id as string} className="border-zinc-800/60 hover:bg-zinc-800/30">
+                      <TableCell className="text-sm text-white max-w-[200px] truncate">
+                        {(bet.marketTitle ?? bet.marketTicker) as string}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn(
+                          "text-[10px]",
+                          bet.side === "yes"
+                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                            : "bg-red-500/20 text-red-400 border-red-500/30"
+                        )}>
+                          {(bet.side as string)?.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-zinc-300">
+                        ${Number(bet.entryPrice).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-sm text-zinc-300">
+                        {bet.contracts as number}
+                      </TableCell>
+                      <TableCell className="text-sm text-zinc-300">
+                        ${Number(bet.totalCost ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className={cn("text-sm font-medium", pnlColor(bet.pnl as string | null))}>
+                        {formatPnl(bet.pnl as string | null)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn("text-[10px]", badge.className)}>
+                          {badge.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px] capitalize">
+                          {bet.mode as string}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
       </div>
-    </Card>
+
+      {/* Mobile card view */}
+      <div className="block sm:hidden space-y-3">
+        {bets.map((bet) => {
+          const badge = statusBadge(bet.status as string, bet.outcome as string | null);
+          const side = bet.side as string;
+          const pnl = bet.pnl as string | number | null;
+          return (
+            <Card key={bet.id as string} className="border-zinc-800/60 bg-zinc-900/50">
+              <CardContent className="py-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className={cn(
+                      "text-[10px]",
+                      side === "yes"
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                        : "bg-red-500/20 text-red-400 border-red-500/30"
+                    )}>
+                      {side?.toUpperCase()}
+                    </Badge>
+                    <span className="text-sm font-medium text-white truncate max-w-[200px]">
+                      {(bet.marketTitle ?? bet.marketTicker) as string}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className={cn("text-[10px]", badge.className)}>
+                    {badge.label}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between text-xs text-zinc-500">
+                  <span>
+                    {bet.contracts as number} contracts @ ${Number(bet.entryPrice).toFixed(2)} · {bet.mode as string}
+                  </span>
+                  {pnl != null && (
+                    <span className={Number(pnl) >= 0 ? "text-emerald-400" : "text-red-400"}>
+                      {formatPnl(pnl)}
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </>
   );
 }
