@@ -109,14 +109,14 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-zinc-400">{formatDate(today)}</p>
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -130,7 +130,7 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${stat.accent}`}>{stat.value}</div>
+                <div className={`text-xl sm:text-2xl font-bold ${stat.accent}`}>{stat.value}</div>
                 <p className="mt-1 text-xs text-zinc-600">{stat.description}</p>
               </CardContent>
             </Card>
@@ -167,7 +167,7 @@ export default function DashboardPage() {
               const badge = recommendationBadge(rec.recommendation as string);
               return (
                 <Card key={rec.id as string} className="border-zinc-800/60 bg-zinc-900/50">
-                  <CardContent className="flex items-center gap-4 py-4">
+                  <CardContent className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
                     <Badge className={badge.className}>{badge.label}</Badge>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">
@@ -181,14 +181,16 @@ export default function DashboardPage() {
                       </p>
                       <p className="text-xs text-zinc-600">confidence</p>
                     </div>
-                    <PlaceBetDialog
-                      marketTicker={(rec.marketTicker ?? rec.market_ticker) as string}
-                      marketTitle={(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
-                      currentYesPrice={0.5}
-                      recommendationId={rec.id as string}
-                      suggestedSide={rec.recommendation === "BUY_NO" ? "no" : "yes"}
-                      suggestedContracts={(rec.suggestedSize as number) ?? 10}
-                    />
+                    <div className="w-full sm:w-auto shrink-0">
+                      <PlaceBetDialog
+                        marketTicker={(rec.marketTicker ?? rec.market_ticker) as string}
+                        marketTitle={(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
+                        currentYesPrice={0.5}
+                        recommendationId={rec.id as string}
+                        suggestedSide={rec.recommendation === "BUY_NO" ? "no" : "yes"}
+                        suggestedContracts={(rec.suggestedSize as number) ?? 10}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -222,7 +224,7 @@ export default function DashboardPage() {
           <div className="grid gap-3">
             {activeBets.map((bet: Record<string, unknown>) => (
               <Card key={bet.id as string} className="border-zinc-800/60 bg-zinc-900/50">
-                <CardContent className="flex items-center gap-4 py-4">
+                <CardContent className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
                   <Badge className={bet.side === "yes" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
                     {(bet.side as string)?.toUpperCase()}
                   </Badge>
