@@ -114,7 +114,7 @@ export default function StrategyPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           Strategy Manager
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -125,7 +125,7 @@ export default function StrategyPage() {
       {/* Active Strategy */}
       <Card className="border-zinc-800/60 bg-zinc-900/50">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
                 <Brain className="h-5 w-5 text-emerald-400" />
@@ -203,7 +203,7 @@ export default function StrategyPage() {
           )}
 
           {activeStrategy?.changeReason && (
-            <div className="mt-4 rounded-lg bg-zinc-800/30 p-3">
+            <div className="mt-4 rounded-lg bg-zinc-800/30 p-2 sm:p-3">
               <p className="text-xs text-zinc-500">Last change reason:</p>
               <p className="text-sm text-zinc-400 mt-0.5">{activeStrategy.changeReason}</p>
             </div>
@@ -245,7 +245,7 @@ export default function StrategyPage() {
             ) : (
               <div className="space-y-3">
                 {archivedStrategies.map((s) => (
-                  <div key={s.id} className="rounded-lg bg-zinc-800/30 p-3 space-y-1">
+                  <div key={s.id} className="rounded-lg bg-zinc-800/30 p-2 sm:p-3 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-zinc-300">
                         {s.name ?? `v${s.version}`}
@@ -300,7 +300,7 @@ export default function StrategyPage() {
             ) : (
               <div className="space-y-3">
                 {proposals.map((a) => (
-                  <div key={a.id} className="rounded-lg bg-zinc-800/30 p-3 space-y-2">
+                  <div key={a.id} className="rounded-lg bg-zinc-800/30 p-2 sm:p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm text-zinc-300">{a.proposedUpdate}</p>
                       <Badge className={cn(

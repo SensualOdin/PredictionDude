@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           Analytics
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
       {!isLoading && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Win Rate Over Time */}
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="min-h-[200px] border-zinc-800/60 bg-zinc-900/50">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-zinc-200">
                 Win Rate Over Time
@@ -164,7 +164,7 @@ export default function AnalyticsPage() {
           </Card>
 
           {/* Accuracy by Category */}
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="min-h-[200px] border-zinc-800/60 bg-zinc-900/50">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-zinc-200">
                 Accuracy by Category
@@ -195,7 +195,7 @@ export default function AnalyticsPage() {
           </Card>
 
           {/* Confidence Calibration */}
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="min-h-[200px] border-zinc-800/60 bg-zinc-900/50">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-zinc-200">
                 Confidence Calibration
@@ -238,7 +238,7 @@ export default function AnalyticsPage() {
           </Card>
 
           {/* P&L Curve */}
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="min-h-[200px] border-zinc-800/60 bg-zinc-900/50">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-zinc-200">
                 P&L Curve
