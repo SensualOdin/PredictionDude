@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bets, markets } from "@/lib/db/schema";
+import { analyses, bets, markets, recommendations } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
+import { aiEngine } from "@/lib/ai";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -95,6 +96,45 @@ export async function GET(request: NextRequest) {
         resolved++;
         if (betWon) won++;
         else lost++;
+
+        // Trigger AI post-mortem analysis (non-blocking — don't fail the cron if this errors)
+        try {
+          let originalReasoning = "No original reasoning recorded";
+          let originalConfidence = 50;
+          if (bet.recommendationId) {
+            const [rec] = await db
+              .select({ reasoning: recommendations.reasoning, confidence: recommendations.confidence })
+              .from(recommendations)
+              .where(eq(recommendations.id, bet.recommendationId))
+              .limit(1);
+            if (rec) {
+              originalReasoning = rec.reasoning ?? originalReasoning;
+              originalConfidence = rec.confidence;
+            }
+          }
+
+          const analysis = await aiEngine.analyzeOutcome({
+            title: market.title ?? bet.marketTicker,
+            side: bet.side.toUpperCase() as "YES" | "NO",
+            entry_price: entryPrice,
+            result: betWon ? "WIN" : "LOSS",
+            reasoning: originalReasoning,
+            confidence: originalConfidence,
+            resolution_context: "",
+          });
+
+          if (analysis) {
+            await db.insert(analyses).values({
+              betId: bet.id,
+              thesisCorrect: analysis.thesis_correct,
+              reasoning: analysis.reasoning,
+              patterns: analysis.patterns,
+              proposedUpdate: analysis.proposed_update,
+            });
+          }
+        } catch (analysisError) {
+          console.error(`[Cron/Resolve] Post-mortem failed for bet ${bet.id}:`, analysisError);
+        }
       } catch (betError) {
         console.error(
           `[Cron/Resolve] Failed to resolve bet ${bet.id} (${bet.marketTicker}):`,

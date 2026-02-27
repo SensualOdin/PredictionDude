@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Brain,
@@ -19,37 +21,95 @@ import {
   BarChart3,
   Tag,
   Layers,
+  Loader2,
+  Check,
+  X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const strategyRules = [
-  {
-    label: "Categories",
-    value: "All except Politics",
-    icon: Tag,
-  },
-  {
-    label: "Min Volume",
-    value: "100",
-    icon: BarChart3,
-  },
-  {
-    label: "Min Time to Expiration",
-    value: "24h",
-    icon: Clock,
-  },
-  {
-    label: "Price Range",
-    value: "$0.15 \u2013 $0.85",
-    icon: DollarSign,
-  },
-  {
-    label: "Default Size",
-    value: "10 contracts",
-    icon: Layers,
-  },
-];
+interface Strategy {
+  id: string;
+  version: number;
+  name: string | null;
+  rules: Record<string, unknown>;
+  parentId: string | null;
+  changeReason: string | null;
+  status: string;
+  createdAt: string;
+}
+
+interface Analysis {
+  id: string;
+  proposedUpdate: string | null;
+  marketTitle: string | null;
+  betOutcome: string | null;
+  createdAt: string;
+}
+
+function formatRuleValue(key: string, value: unknown): string {
+  if (key === "categories") {
+    const cats = value as Record<string, unknown>;
+    if (cats.blocked && Array.isArray(cats.blocked) && cats.blocked.length > 0) {
+      return `All except ${(cats.blocked as string[]).join(", ")}`;
+    }
+    if (cats.allowed && Array.isArray(cats.allowed)) {
+      return (cats.allowed as string[]).join(", ");
+    }
+    return "All";
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+const ruleIcons: Record<string, typeof Tag> = {
+  categories: Tag,
+  filters: BarChart3,
+  position_sizing: Layers,
+  notifications: Clock,
+};
 
 export default function StrategyPage() {
+  const queryClient = useQueryClient();
+
+  const { data: strategiesData, isLoading: loadingStrategies } = useQuery({
+    queryKey: ["strategies"],
+    queryFn: () => fetch("/api/strategies").then((r) => r.json()),
+  });
+
+  const { data: analysesData } = useQuery({
+    queryKey: ["analyses"],
+    queryFn: () => fetch("/api/analyses?limit=10").then((r) => r.json()),
+  });
+
+  const applyProposal = useMutation({
+    mutationFn: async ({ rules, changeReason }: { rules: Record<string, unknown>; changeReason: string }) => {
+      const res = await fetch("/api/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules, changeReason }),
+      });
+      if (!res.ok) throw new Error("Failed to create strategy");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategies"] });
+    },
+  });
+
+  const allStrategies: Strategy[] = strategiesData?.strategies ?? [];
+  const activeStrategy = allStrategies.find((s) => s.status === "active");
+  const archivedStrategies = allStrategies.filter((s) => s.status === "archived");
+
+  // Get analyses with proposed updates (not "none")
+  const allAnalyses: Analysis[] = analysesData?.analyses ?? [];
+  const proposals = allAnalyses.filter(
+    (a) => a.proposedUpdate && a.proposedUpdate !== "none" && a.proposedUpdate.trim() !== ""
+  );
+
+  const rules = (activeStrategy?.rules ?? {}) as Record<string, unknown>;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -75,39 +135,79 @@ export default function StrategyPage() {
                   Active Strategy
                 </CardTitle>
                 <CardDescription className="text-xs text-zinc-500">
-                  Version 1.0 &middot; Default configuration
+                  {activeStrategy
+                    ? `${activeStrategy.name ?? "Unnamed"} · v${activeStrategy.version}`
+                    : "No active strategy"}
                 </CardDescription>
               </div>
             </div>
-            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
-              <ShieldCheck className="mr-1 h-3 w-3" />
-              Active
-            </Badge>
+            {activeStrategy && (
+              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
+                <ShieldCheck className="mr-1 h-3 w-3" />
+                Active
+              </Badge>
+            )}
           </div>
         </CardHeader>
 
         <CardContent className="space-y-0">
           <Separator className="mb-4 bg-zinc-800/60" />
 
-          <div className="space-y-1">
-            {strategyRules.map((rule, index) => {
-              const Icon = rule.icon;
-              return (
-                <div
-                  key={rule.label}
-                  className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-zinc-800/30"
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="h-4 w-4 text-zinc-600" />
-                    <span className="text-sm text-zinc-400">{rule.label}</span>
+          {loadingStrategies ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+            </div>
+          ) : Object.keys(rules).length === 0 ? (
+            <p className="text-sm text-zinc-600 text-center py-8">No rules configured</p>
+          ) : (
+            <div className="space-y-1">
+              {Object.entries(rules).map(([key, value]) => {
+                const Icon = ruleIcons[key] ?? DollarSign;
+                // For nested objects, show sub-keys
+                if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                  return Object.entries(value as Record<string, unknown>).map(([subKey, subVal]) => (
+                    <div
+                      key={`${key}.${subKey}`}
+                      className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-zinc-800/30"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-4 w-4 text-zinc-600" />
+                        <span className="text-sm text-zinc-400 capitalize">
+                          {subKey.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-zinc-200">
+                        {formatRuleValue(subKey, subVal)}
+                      </span>
+                    </div>
+                  ));
+                }
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-zinc-800/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-4 w-4 text-zinc-600" />
+                      <span className="text-sm text-zinc-400 capitalize">
+                        {key.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <span className="text-sm font-medium text-zinc-200">
+                      {formatRuleValue(key, value)}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-zinc-200">
-                    {rule.value}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+
+          {activeStrategy?.changeReason && (
+            <div className="mt-4 rounded-lg bg-zinc-800/30 p-3">
+              <p className="text-xs text-zinc-500">Last change reason:</p>
+              <p className="text-sm text-zinc-400 mt-0.5">{activeStrategy.changeReason}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -130,17 +230,40 @@ export default function StrategyPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800/60">
-                <History className="h-5 w-5 text-zinc-700" />
+            {archivedStrategies.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800/60">
+                  <History className="h-5 w-5 text-zinc-700" />
+                </div>
+                <p className="mt-3 text-sm text-zinc-600">
+                  No previous versions
+                </p>
+                <p className="mt-1 text-xs text-zinc-700">
+                  Modifications will appear here
+                </p>
               </div>
-              <p className="mt-3 text-sm text-zinc-600">
-                No previous versions
-              </p>
-              <p className="mt-1 text-xs text-zinc-700">
-                Modifications will appear here
-              </p>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {archivedStrategies.map((s) => (
+                  <div key={s.id} className="rounded-lg bg-zinc-800/30 p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-300">
+                        {s.name ?? `v${s.version}`}
+                      </span>
+                      <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                        v{s.version}
+                      </Badge>
+                    </div>
+                    {s.changeReason && (
+                      <p className="text-xs text-zinc-500">{s.changeReason}</p>
+                    )}
+                    <p className="text-[10px] text-zinc-600">
+                      {new Date(s.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -162,17 +285,40 @@ export default function StrategyPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800/60">
-                <GitPullRequestDraft className="h-5 w-5 text-zinc-700" />
+            {proposals.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800/60">
+                  <GitPullRequestDraft className="h-5 w-5 text-zinc-700" />
+                </div>
+                <p className="mt-3 text-sm text-zinc-600">
+                  No proposed changes
+                </p>
+                <p className="mt-1 text-xs text-zinc-700">
+                  The AI will suggest changes based on performance
+                </p>
               </div>
-              <p className="mt-3 text-sm text-zinc-600">
-                No proposed changes
-              </p>
-              <p className="mt-1 text-xs text-zinc-700">
-                The AI will suggest changes based on performance
-              </p>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {proposals.map((a) => (
+                  <div key={a.id} className="rounded-lg bg-zinc-800/30 p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm text-zinc-300">{a.proposedUpdate}</p>
+                      <Badge className={cn(
+                        "text-[10px] shrink-0",
+                        a.betOutcome === "hit"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-red-500/20 text-red-400"
+                      )}>
+                        {a.betOutcome === "hit" ? "From Win" : "From Loss"}
+                      </Badge>
+                    </div>
+                    {a.marketTitle && (
+                      <p className="text-xs text-zinc-600 truncate">{a.marketTitle}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
