@@ -172,6 +172,19 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
   }),
 }));
 
+// ─── Settings ──────────────────────────────────────────────────────────────────
+
+export const settings = pgTable("settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tradingMode: text("trading_mode").notNull().default("paper"),
+  kalshiEnv: text("kalshi_env").notNull().default("demo"),
+  minConfidenceThreshold: integer("min_confidence_threshold").notNull().default(75),
+  scanIntervalHours: integer("scan_interval_hours").notNull().default(4),
+  pushEnabled: boolean("push_enabled").notNull().default(false),
+  pushSubscription: jsonb("push_subscription"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 // ─── Type exports ───────────────────────────────────────────────────────────────
 
 export type Market = typeof markets.$inferSelect;
@@ -191,3 +204,6 @@ export type NewAnalysis = typeof analyses.$inferInsert;
 
 export type Alert = typeof alerts.$inferSelect;
 export type NewAlert = typeof alerts.$inferInsert;
+
+export type Settings = typeof settings.$inferSelect;
+export type NewSettings = typeof settings.$inferInsert;
