@@ -16,6 +16,7 @@ import {
   Inbox,
   CircleDot,
 } from "lucide-react";
+import { PlaceBetDialog } from "@/components/place-bet-dialog";
 
 const POLL_INTERVAL = 30_000;
 
@@ -174,12 +175,20 @@ export default function DashboardPage() {
                       </p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">{rec.reasoning as string}</p>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 mr-2">
                       <p className={`text-sm font-semibold ${confidenceColor(rec.confidence as number)}`}>
                         {rec.confidence as number}%
                       </p>
                       <p className="text-xs text-zinc-600">confidence</p>
                     </div>
+                    <PlaceBetDialog
+                      marketTicker={(rec.marketTicker ?? rec.market_ticker) as string}
+                      marketTitle={(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
+                      currentYesPrice={0.5}
+                      recommendationId={rec.id as string}
+                      suggestedSide={rec.recommendation === "BUY_NO" ? "no" : "yes"}
+                      suggestedContracts={(rec.suggestedSize as number) ?? 10}
+                    />
                   </CardContent>
                 </Card>
               );
