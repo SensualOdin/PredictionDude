@@ -2,16 +2,22 @@ import webpush from "web-push";
 import { db } from "@/lib/db";
 import { settings, alerts } from "@/lib/db/schema";
 
-// Configure VAPID
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+// Configure VAPID (trim to avoid trailing newlines from env injection)
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim();
 
+let vapidConfigured = false;
 if (vapidPublicKey && vapidPrivateKey) {
-  webpush.setVapidDetails(
-    "mailto:george@predictiondude.com",
-    vapidPublicKey,
-    vapidPrivateKey
-  );
+  try {
+    webpush.setVapidDetails(
+      "mailto:george@predictiondude.com",
+      vapidPublicKey,
+      vapidPrivateKey
+    );
+    vapidConfigured = true;
+  } catch (e) {
+    console.warn("[Push] VAPID configuration failed:", e);
+  }
 }
 
 interface PushPayload {
@@ -25,8 +31,8 @@ export async function sendPushNotification(
   alertData?: { recommendationId: string; type: string }
 ): Promise<boolean> {
   try {
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      console.log("[Push] VAPID keys not configured, skipping push");
+    if (!vapidConfigured) {
+      console.log("[Push] VAPID not configured, skipping push");
       return false;
     }
 
