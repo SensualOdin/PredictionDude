@@ -7,8 +7,24 @@ import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
 import { categorizeMarket } from "@/lib/categorize";
 
-// Kalshi event categories to scan (these are Kalshi's native categories)
-const KALSHI_CATEGORIES = ["Sports"];
+// Series tickers for game-specific sports markets (where the real action is)
+const SPORTS_SERIES = [
+  "KXNBAGAME",     // NBA game winners
+  "KXNBASPREAD",   // NBA spreads
+  "KXNBAOU",       // NBA over/unders
+  "KXCBBML",       // College basketball moneylines
+  "KXCBBGAME",     // College basketball game winners
+  "KXCBBSPREAD",   // College basketball spreads
+  "KXCBBOU",       // College basketball over/unders
+  "KXNHLGAME",     // NHL game winners
+  "KXNHLSPREAD",   // NHL spreads
+  "KXNHLOU",       // NHL over/unders
+  "KXNFLGAME",     // NFL game winners
+  "KXNFLSPREAD",   // NFL spreads
+  "KXNFLOU",       // NFL over/unders
+  "KXMLBGAME",     // MLB game winners
+  "KXMLBSPREAD",   // MLB spreads
+];
 
 // Series tickers for mention-type markets (ephemeral, appear when events scheduled)
 const MENTION_SERIES = [
@@ -101,33 +117,22 @@ export async function GET(request: NextRequest) {
 async function runScan() {
 
   try {
-    // ---- Fetch sports events via Kalshi's events API ----
+    // ---- Fetch sports markets from game-specific series ----
     const allMarkets: Record<string, unknown>[] = [];
 
-    for (const cat of KALSHI_CATEGORIES) {
-      let cursor: string | undefined;
-      // Paginate up to 3 pages per category (600 events max)
-      for (let page = 0; page < 3; page++) {
-        const eventsResp = await kalshi.getEvents({
-          status: "open",
-          limit: 200,
-          category: cat,
-          with_nested_markets: true,
-          cursor,
-        });
-        const events: Record<string, unknown>[] = eventsResp.events ?? [];
-        for (const event of events) {
-          const eventMarkets = (event.markets ?? []) as Record<string, unknown>[];
-          for (const m of eventMarkets) {
-            m.category = categorizeMarket(
-              String(m.title ?? ""),
-              m.event_ticker as string | null,
-            );
-          }
-          allMarkets.push(...eventMarkets);
+    for (const series of SPORTS_SERIES) {
+      try {
+        const resp = await kalshi.getMarkets({ status: "open", limit: 200, series_ticker: series });
+        const mks = (resp.markets ?? []) as Record<string, unknown>[];
+        for (const m of mks) {
+          m.category = categorizeMarket(
+            String(m.title ?? ""),
+            m.event_ticker as string | null,
+          );
         }
-        cursor = eventsResp.cursor as string | undefined;
-        if (!cursor || events.length < 200) break;
+        allMarkets.push(...mks);
+      } catch {
+        // Series may not exist for this sport/season — that's fine
       }
     }
 
