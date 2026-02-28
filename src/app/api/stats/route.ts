@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { bets } from "@/lib/db/schema";
+import { bets, settings } from "@/lib/db/schema";
 import { eq, isNotNull, sql, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +52,11 @@ export async function GET() {
       }
     }
 
+    // Bankroll
+    const [userSettings] = await db.select().from(settings).limit(1);
+    const startingBankroll = Number(userSettings?.startingBankroll ?? 1000);
+    const currentBankroll = Number(userSettings?.currentBankroll ?? 1000);
+
     return NextResponse.json({
       winRate,
       totalPnl,
@@ -59,6 +64,8 @@ export async function GET() {
       streak,
       streakType,
       totalResolved: total,
+      startingBankroll,
+      currentBankroll,
     });
   } catch (error) {
     console.error("[Stats API] Failed:", error);

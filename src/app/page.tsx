@@ -176,12 +176,12 @@ export default function DashboardPage() {
       iconBg: stats?.activeCount > 0 ? "bg-blue-500/10" : "bg-zinc-800/50",
     },
     {
-      title: "Current Streak",
-      value: stats?.streak ? `${stats.streak}${stats.streakType}` : "\u2014",
-      description: stats?.streak ? `${stats.streak} consecutive ${stats.streakType === "W" ? "wins" : "losses"}` : "No streak",
+      title: "Bankroll",
+      value: stats?.currentBankroll != null ? `$${Number(stats.currentBankroll).toFixed(2)}` : "$1,000.00",
+      description: stats?.startingBankroll ? `Started at $${Number(stats.startingBankroll).toFixed(2)}` : "Paper trading",
       icon: Flame,
-      accent: stats?.streakType === "W" ? "text-emerald-400" : stats?.streakType === "L" ? "text-red-400" : "text-zinc-500",
-      iconBg: stats?.streakType === "W" ? "bg-emerald-500/10" : stats?.streakType === "L" ? "bg-red-500/10" : "bg-zinc-800/50",
+      accent: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "text-emerald-400" : "text-red-400",
+      iconBg: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "bg-emerald-500/10" : "bg-red-500/10",
     },
   ];
 

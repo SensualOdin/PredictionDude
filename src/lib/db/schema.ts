@@ -182,6 +182,8 @@ export const settings = pgTable("settings", {
   scanIntervalHours: integer("scan_interval_hours").notNull().default(4),
   pushEnabled: boolean("push_enabled").notNull().default(false),
   pushSubscription: jsonb("push_subscription"),
+  startingBankroll: numeric("starting_bankroll", { precision: 10, scale: 2 }).notNull().default("1000.00"),
+  currentBankroll: numeric("current_bankroll", { precision: 10, scale: 2 }).notNull().default("1000.00"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 

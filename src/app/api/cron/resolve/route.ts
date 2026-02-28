@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { analyses, bets, markets, recommendations } from "@/lib/db/schema";
+import { analyses, bets, markets, recommendations, settings } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
 import { aiEngine } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
       .select()
       .from(bets)
       .where(eq(bets.status, "open"));
+
+    // Load bankroll
+    const [userSettings] = await db.select().from(settings).limit(1);
+    let bankroll = Number(userSettings?.currentBankroll ?? 0);
 
     let resolved = 0;
     let won = 0;
@@ -124,6 +128,13 @@ export async function GET(request: NextRequest) {
           })
           .where(eq(markets.ticker, bet.marketTicker));
 
+        // Credit bankroll: winner gets $1 * contracts, loser gets $0
+        // Either way the original cost was already deducted at bet placement
+        if (betWon) {
+          bankroll += 1 * contracts; // $1 per contract payout
+        }
+        // (If lost, nothing returned — cost was already deducted)
+
         resolved++;
         if (betWon) won++;
         else lost++;
@@ -175,12 +186,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Persist updated bankroll
+    if (resolved > 0 && userSettings) {
+      await db.update(settings).set({
+        currentBankroll: bankroll.toFixed(2),
+      }).where(eq(settings.id, userSettings.id));
+    }
+
     return NextResponse.json({
       success: true,
       openBetsChecked: openBets.length,
       resolved,
       won,
       lost,
+      bankroll: bankroll.toFixed(2),
     });
   } catch (error) {
     console.error("[Cron/Resolve] Resolve failed:", error);

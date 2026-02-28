@@ -278,6 +278,14 @@ async function runScan() {
           const side = analysis.recommendation === "BUY_YES" ? "yes" : "no";
           const entryPrice = Number(market.yes_bid ?? market.yes_ask ?? 0) / 100;
           const contracts = analysis.suggested_size ?? 1;
+          const totalCost = entryPrice * contracts;
+
+          // Check bankroll before placing bet
+          const currentBankroll = Number(userSettings?.currentBankroll ?? 0);
+          if (totalCost > currentBankroll) {
+            console.log(`[Cron/Scan] Skipping ${ticker}: cost $${totalCost.toFixed(2)} exceeds bankroll $${currentBankroll.toFixed(2)}`);
+            continue;
+          }
 
           await db.insert(bets).values({
             marketTicker: ticker,
@@ -287,9 +295,14 @@ async function runScan() {
             action: "buy",
             entryPrice: entryPrice.toFixed(4),
             contracts,
-            totalCost: (entryPrice * contracts).toFixed(4),
+            totalCost: totalCost.toFixed(4),
             status: "open",
           });
+
+          // Deduct cost from bankroll
+          await db.update(settings).set({
+            currentBankroll: (currentBankroll - totalCost).toFixed(2),
+          }).where(eq(settings.id, userSettings!.id));
 
           betsPlaced++;
 
