@@ -42,14 +42,23 @@ export async function GET(request: NextRequest) {
         const marketResponse = await kalshi.getMarket(bet.marketTicker);
         const market = marketResponse.market ?? marketResponse;
 
-        // Only process settled markets
-        if (market.status !== "settled" && market.result === undefined) {
+        // Check for virtual settlement: if yes_price >= 99 cents, market
+        // is effectively "yes"; if <= 1 cent, effectively "no". This handles
+        // mention-type markets that sit at 99% long before official settlement.
+        const yesPrice = Number(market.yes_bid ?? market.yes_ask ?? 50);
+        const isVirtuallySettled = yesPrice >= 99 || yesPrice <= 1;
+        const virtualResult = yesPrice >= 99 ? "yes" : "no";
+
+        // Only process officially settled markets OR virtually settled ones
+        if (market.status !== "settled" && market.result === undefined && !isVirtuallySettled) {
           continue;
         }
 
         // Determine if the bet won or lost
-        // market.result is typically "yes" or "no"
-        const marketResult = String(market.result ?? "").toLowerCase();
+        // market.result is typically "yes" or "no"; fall back to virtual result
+        const marketResult = market.result
+          ? String(market.result).toLowerCase()
+          : virtualResult;
 
         // A bet wins if:
         //   - side is "yes" and market resolved "yes"
@@ -57,18 +66,29 @@ export async function GET(request: NextRequest) {
         const betWon = bet.side === marketResult;
 
         // Calculate exit price and P&L
-        // If won: exit at 1.00 per contract. If lost: exit at 0.00.
-        const exitPrice = betWon ? "1.0000" : "0.0000";
+        // Official settlement: win = 1.00, loss = 0.00
+        // Virtual settlement (99%/1%): use the actual market price
+        const officiallySettled = market.status === "settled" || market.result !== undefined;
         const entryPrice = Number(bet.entryPrice);
         const contracts = bet.contracts;
 
-        let pnl: string;
-        if (betWon) {
-          // Profit = (1 - entry_price) * contracts
-          pnl = ((1 - entryPrice) * contracts).toFixed(4);
+        let exitPriceNum: number;
+        if (officiallySettled) {
+          exitPriceNum = betWon ? 1 : 0;
         } else {
-          // Loss = entry_price * contracts (negative)
-          pnl = (-(entryPrice * contracts)).toFixed(4);
+          // Virtual settlement — use actual yes price (in cents -> decimal)
+          exitPriceNum = yesPrice / 100;
+        }
+
+        const exitPrice = exitPriceNum.toFixed(4);
+
+        // P&L from the perspective of the bet side
+        let pnl: string;
+        if (bet.side === "yes") {
+          pnl = ((exitPriceNum - entryPrice) * contracts).toFixed(4);
+        } else {
+          // "no" side profits when yes price drops
+          pnl = (((1 - exitPriceNum) - (1 - entryPrice)) * contracts).toFixed(4);
         }
 
         // Update the bet record
@@ -97,7 +117,7 @@ export async function GET(request: NextRequest) {
         await db
           .update(markets)
           .set({
-            status: "settled",
+            status: officiallySettled ? "settled" : "virtually_settled",
             result: marketResult,
             settledAt: new Date(),
             lastSynced: new Date(),

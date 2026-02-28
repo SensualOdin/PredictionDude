@@ -146,10 +146,27 @@ async function runScan() {
     }
 
     // Drop junk: zero price AND zero volume
-    const kalshiMarkets = allMarkets.filter((m) => {
+    const nonJunkMarkets = allMarkets.filter((m) => {
       const vol = Number(m.volume_24h ?? m.volume ?? 0);
       const price = Number(m.yes_bid ?? m.yes_ask ?? 0);
       return vol > 0 || price > 0;
+    });
+
+    // Only keep markets that resolve today or tomorrow (short-term bets).
+    // Kalshi close_time values are UTC ISO strings, so compare in UTC.
+    const now = new Date();
+    const endOfTomorrow = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 2, // midnight after tomorrow UTC
+      0, 0, 0, 0,
+    ));
+
+    const kalshiMarkets = nonJunkMarkets.filter((m) => {
+      const closeTime = m.close_time ?? m.expected_expiration_time;
+      if (!closeTime) return false;
+      const closeDate = new Date(closeTime as string);
+      return closeDate.getTime() <= endOfTomorrow.getTime();
     });
 
     // Fetch the active strategy
