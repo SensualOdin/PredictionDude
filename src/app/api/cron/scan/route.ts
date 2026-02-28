@@ -201,9 +201,9 @@ async function runScan() {
       passesStrategyFilters(m, strategyRules),
     );
 
-    // Cap at 5 markets per scan to stay within Vercel's 300s function timeout
-    // (~30s per AI analysis with web search = ~150s for 5 markets)
-    const MAX_MARKETS_PER_SCAN = 5;
+    // Analyze up to 15 markets per scan. Each AI analysis with web search
+    // takes ~15-20s. Vercel allows 300s max, so 15 markets ≈ 250s.
+    const MAX_MARKETS_PER_SCAN = 15;
     const toAnalyze = eligible.slice(0, MAX_MARKETS_PER_SCAN);
 
     let recommendationsCreated = 0;

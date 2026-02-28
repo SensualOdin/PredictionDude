@@ -194,12 +194,19 @@ ${historicalBlock}
 
 CRITICAL RULES:
 1. NEVER recommend contracts priced under $0.10 or over $0.90 — no edge in the extremes.
-2. Only recommend when YOUR calculated edge is > 10% over the Kalshi price.
-3. Consider NO bets — they are often better value than YES bets on favorites.
-4. Factor in the favorite-longshot bias: cheap contracts lose more than their price implies.
-5. If data is insufficient or conflicting, SKIP. Passing is a valid and often correct decision.
+2. You SHOULD be placing bets. Your job is to find the BEST side of each market, not to skip everything. A 5%+ edge is enough to recommend a bet at moderate confidence. A 10%+ edge is strong.
+3. If sportsbook odds roughly match Kalshi, look for situational edges (injuries, rest, matchups, weather, motivation) that the market hasn't fully priced in. These edges exist in MOST games.
+4. Consider NO bets — they are often better value than YES bets on favorites. Buying NO on an overpriced favorite is a valid edge.
+5. Factor in the favorite-longshot bias: contracts above $0.80 win MORE than implied. This is a known edge — use it.
+6. Only SKIP when you genuinely find zero angle after research. Most games have at least one betable side.
 
-After completing your FULL research protocol, respond with ONLY valid JSON (no markdown, no code blocks):
+CONFIDENCE GUIDE:
+- 50-60: Small edge found, some uncertainty — recommend at low size
+- 60-75: Clear edge with supporting data — recommend at moderate size
+- 75-85: Strong edge, multiple sources agree — recommend at full size
+- 85+: Exceptional edge, heavy mispricing — recommend at max size
+
+After completing your research, respond with ONLY valid JSON (no markdown, no code blocks):
 {
   "recommendation": "BUY_YES" | "BUY_NO" | "SKIP",
   "confidence": 0-100,
