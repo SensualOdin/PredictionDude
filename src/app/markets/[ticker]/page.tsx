@@ -90,7 +90,7 @@ export default function MarketDetailPage({
   const noPrice = 1 - yesPrice;
   const volume = Number(marketData.volume_24h ?? marketData.volume ?? 0);
   const openInterest = Number(marketData.open_interest ?? 0);
-  const closeTime = (marketData.close_time ?? marketData.expected_expiration ?? null) as string | null;
+  const closeTime = (marketData.expected_expiration_time ?? marketData.expected_expiration ?? marketData.close_time ?? null) as string | null;
   const category = String(marketData.category ?? "unknown");
   const status = String(marketData.status ?? "open");
 

@@ -136,7 +136,7 @@ export default function MarketsPage() {
             const yesPrice = Number(market.yes_price ?? market.yes_bid ?? 0);
             const volume = Number(market.volume_24h ?? market.volume ?? 0);
             const category = String(market.category ?? "other");
-            const closeTime = (market.close_time ?? market.expected_expiration ?? null) as string | null;
+            const closeTime = (market.expected_expiration_time ?? market.expected_expiration ?? market.close_time ?? null) as string | null;
 
             return (
               <Link key={ticker} href={`/markets/${encodeURIComponent(ticker)}`} className="min-h-[44px]">

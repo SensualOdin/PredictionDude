@@ -63,7 +63,7 @@ function passesStrategyFilters(
 
   // Expiration filter -- market must close at least N hours from now
   if (rules.min_hours_until_close !== undefined) {
-    const closeTime = market.close_time ?? market.expected_expiration_time;
+    const closeTime = market.expected_expiration_time ?? market.close_time;
     if (closeTime) {
       const hoursUntilClose =
         (new Date(closeTime as string).getTime() - Date.now()) / 3_600_000;
@@ -222,7 +222,7 @@ async function runScan() {
           yes_price: Number(market.yes_bid ?? market.yes_ask ?? 0) / 100,
           volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
           close_time: String(
-            market.close_time ?? market.expected_expiration_time ?? "",
+            market.expected_expiration_time ?? market.close_time ?? "",
           ),
           orderbook_summary: orderbookSummary,
           strategy_rules: strategyRules as Record<string, unknown>,
@@ -243,8 +243,8 @@ async function runScan() {
             status: String(market.status ?? "open"),
             yesPrice: (Number(market.yes_bid ?? market.yes_ask ?? 0) / 100).toFixed(4),
             volume24h: Number(market.volume_24h ?? market.volume ?? 0),
-            closeTime: market.close_time
-              ? new Date(market.close_time as string)
+            closeTime: (market.expected_expiration_time ?? market.close_time)
+              ? new Date((market.expected_expiration_time ?? market.close_time) as string)
               : null,
             rawData: market,
             lastSynced: new Date(),

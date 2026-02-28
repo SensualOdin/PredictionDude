@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       category: market.category ?? "unknown",
       yes_price: Number(market.yes_price ?? market.yes_bid ?? 0),
       volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
-      close_time: market.close_time ?? market.expected_expiration ?? "",
+      close_time: market.expected_expiration_time ?? market.expected_expiration ?? market.close_time ?? "",
       orderbook_summary: orderbookSummary,
       strategy_rules: (activeStrategy?.rules as Record<string, unknown>) ?? {},
       historical_performance: {
@@ -129,8 +129,8 @@ export async function POST(request: NextRequest) {
         status: market.status ?? "open",
         yesPrice: String(market.yes_price ?? market.yes_bid ?? "0"),
         volume24h: Number(market.volume_24h ?? market.volume ?? 0),
-        closeTime: market.close_time
-          ? new Date(market.close_time)
+        closeTime: (market.expected_expiration_time ?? market.expected_expiration ?? market.close_time)
+          ? new Date(market.expected_expiration_time ?? market.expected_expiration ?? market.close_time)
           : null,
         rawData: market,
         lastSynced: new Date(),
