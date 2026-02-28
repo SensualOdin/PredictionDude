@@ -13,8 +13,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kalshi AI Trader",
-  description: "AI-powered prediction market assistant",
+  title: "PredictionDude",
+  description: "AI-powered prediction market trading terminal",
   manifest: "/manifest.json",
 };
 
@@ -26,11 +26,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} font-sans antialiased bg-zinc-950 text-zinc-100`}
+        className={`${inter.variable} font-sans antialiased bg-cyber-bg text-[#e0e0f0] cyber-grid-bg cyber-ambient scanlines`}
       >
         <Providers>
           <ServiceWorkerRegister />
-          <div className="flex min-h-screen">
+          <div className="relative z-10 flex min-h-screen">
             <Sidebar />
             <main className="flex-1 pl-0 pb-14 md:pl-16 md:pb-0">
               <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">

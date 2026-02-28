@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface PlaceBetDialogProps {
@@ -89,15 +88,15 @@ export function PlaceBetDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button size="sm" className="bg-neon-cyan/15 hover:bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/30 uppercase tracking-wider text-xs font-semibold flex-1 sm:flex-none">
             Place Bet
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="border-zinc-800 bg-zinc-900 text-zinc-100 sm:max-w-md">
+      <DialogContent className="border-neon-cyan/20 bg-cyber-card text-[#e0e0f0] sm:max-w-md glow-cyan">
         <DialogHeader>
-          <DialogTitle className="text-white">Place Bet</DialogTitle>
-          <DialogDescription className="text-zinc-400 truncate">
+          <DialogTitle className="text-neon-cyan uppercase tracking-wider">Place Bet</DialogTitle>
+          <DialogDescription className="text-[#7a7a9a] truncate">
             {marketTitle}
           </DialogDescription>
         </DialogHeader>
@@ -105,15 +104,15 @@ export function PlaceBetDialog({
         <div className="space-y-5 py-2">
           {/* Side Toggle */}
           <div className="space-y-2">
-            <Label className="text-zinc-400 text-xs uppercase tracking-wider">Side</Label>
+            <Label className="text-[#7a7a9a] text-xs uppercase tracking-[0.15em]">Side</Label>
             <div className="flex gap-2">
               <button
                 onClick={() => setSide("yes")}
                 className={cn(
-                  "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
+                  "flex-1 rounded-lg py-2.5 text-sm font-bold uppercase tracking-wider transition-all",
                   side === "yes"
-                    ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
-                    : "bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800"
+                    ? "bg-neon-cyan/15 text-neon-cyan ring-1 ring-neon-cyan/40"
+                    : "bg-[#1a1a4a]/60 text-[#5a5a7a] hover:bg-[#1a1a4a]"
                 )}
               >
                 YES
@@ -121,10 +120,10 @@ export function PlaceBetDialog({
               <button
                 onClick={() => setSide("no")}
                 className={cn(
-                  "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
+                  "flex-1 rounded-lg py-2.5 text-sm font-bold uppercase tracking-wider transition-all",
                   side === "no"
-                    ? "bg-red-500/20 text-red-400 ring-1 ring-red-500/40"
-                    : "bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800"
+                    ? "bg-neon-magenta/15 text-neon-magenta ring-1 ring-neon-magenta/40"
+                    : "bg-[#1a1a4a]/60 text-[#5a5a7a] hover:bg-[#1a1a4a]"
                 )}
               >
                 NO
@@ -134,7 +133,7 @@ export function PlaceBetDialog({
 
           {/* Contracts */}
           <div className="space-y-2">
-            <Label htmlFor="contracts" className="text-zinc-400 text-xs uppercase tracking-wider">
+            <Label htmlFor="contracts" className="text-[#7a7a9a] text-xs uppercase tracking-[0.15em]">
               Contracts
             </Label>
             <Input
@@ -143,21 +142,21 @@ export function PlaceBetDialog({
               min={1}
               value={contracts}
               onChange={(e) => setContracts(Math.max(1, Number(e.target.value)))}
-              className="border-zinc-700 bg-zinc-800/60 text-white"
+              className="border-neon-cyan/20 bg-[#1a1a4a]/60 text-[#e0e0f0] focus:border-neon-cyan/40 focus:ring-neon-cyan/20"
             />
           </div>
 
           {/* Mode Toggle */}
           <div className="space-y-2">
-            <Label className="text-zinc-400 text-xs uppercase tracking-wider">Mode</Label>
+            <Label className="text-[#7a7a9a] text-xs uppercase tracking-[0.15em]">Mode</Label>
             <div className="flex gap-2">
               <button
                 onClick={() => setMode("paper")}
                 className={cn(
-                  "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
+                  "flex-1 rounded-lg py-2 text-sm font-semibold uppercase tracking-wider transition-all",
                   mode === "paper"
-                    ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40"
-                    : "bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800"
+                    ? "bg-neon-purple/15 text-neon-purple ring-1 ring-neon-purple/40"
+                    : "bg-[#1a1a4a]/60 text-[#5a5a7a] hover:bg-[#1a1a4a]"
                 )}
               >
                 Paper
@@ -165,10 +164,10 @@ export function PlaceBetDialog({
               <button
                 onClick={() => setMode("real")}
                 className={cn(
-                  "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
+                  "flex-1 rounded-lg py-2 text-sm font-semibold uppercase tracking-wider transition-all",
                   mode === "real"
-                    ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40"
-                    : "bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800"
+                    ? "bg-neon-yellow/15 text-neon-yellow ring-1 ring-neon-yellow/40"
+                    : "bg-[#1a1a4a]/60 text-[#5a5a7a] hover:bg-[#1a1a4a]"
                 )}
               >
                 Real
@@ -177,24 +176,24 @@ export function PlaceBetDialog({
           </div>
 
           {/* Cost Summary */}
-          <div className="rounded-lg bg-zinc-800/40 p-3 space-y-2">
+          <div className="rounded-lg bg-[#1a1a4a]/40 border border-neon-cyan/10 p-3 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Entry Price</span>
-              <span className="text-zinc-300">${entryPrice.toFixed(2)}</span>
+              <span className="text-[#7a7a9a] uppercase tracking-wider text-xs">Entry Price</span>
+              <span className="text-[#c0c0d0]">${entryPrice.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Total Cost</span>
-              <span className="text-white font-semibold">${totalCost.toFixed(2)}</span>
+              <span className="text-[#7a7a9a] uppercase tracking-wider text-xs">Total Cost</span>
+              <span className="text-[#e0e0f0] font-semibold">${totalCost.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Potential Profit</span>
-              <span className="text-emerald-400">+${potentialProfit.toFixed(2)}</span>
+              <span className="text-[#7a7a9a] uppercase tracking-wider text-xs">Potential Profit</span>
+              <span className="text-neon-cyan">+${potentialProfit.toFixed(2)}</span>
             </div>
           </div>
 
           {mode === "real" && (
-            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-              <p className="text-xs text-amber-400">
+            <div className="rounded-lg bg-neon-yellow/5 border border-neon-yellow/20 p-3">
+              <p className="text-xs text-neon-yellow">
                 Real mode will place a live order on Kalshi using your API credentials.
               </p>
             </div>
@@ -205,7 +204,7 @@ export function PlaceBetDialog({
           <Button
             variant="ghost"
             onClick={() => setOpen(false)}
-            className="text-zinc-400"
+            className="text-[#7a7a9a] hover:text-[#c0c0d0] hover:bg-[#1a1a4a]/60"
           >
             Cancel
           </Button>
@@ -213,10 +212,10 @@ export function PlaceBetDialog({
             onClick={() => placeBet.mutate()}
             disabled={placeBet.isPending}
             className={cn(
-              "font-semibold",
+              "font-semibold uppercase tracking-wider",
               mode === "real"
-                ? "bg-amber-600 hover:bg-amber-700 text-white"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                ? "bg-neon-yellow/15 hover:bg-neon-yellow/25 text-neon-yellow border border-neon-yellow/30"
+                : "btn-neon-cyan"
             )}
           >
             {placeBet.isPending
@@ -226,7 +225,7 @@ export function PlaceBetDialog({
         </DialogFooter>
 
         {placeBet.isError && (
-          <p className="text-xs text-red-400 text-center">
+          <p className="text-xs text-neon-magenta text-center">
             {placeBet.error.message}
           </p>
         )}

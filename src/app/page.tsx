@@ -40,15 +40,15 @@ function formatPnl(pnl: number) {
 }
 
 function confidenceColor(confidence: number) {
-  if (confidence >= 80) return "text-emerald-400";
-  if (confidence >= 60) return "text-amber-400";
-  return "text-zinc-400";
+  if (confidence >= 80) return "text-neon-cyan text-glow-cyan";
+  if (confidence >= 60) return "text-neon-yellow";
+  return "text-[#7a7a9a]";
 }
 
 function recommendationBadge(rec: string) {
-  if (rec === "BUY_YES") return { label: "YES", className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
-  if (rec === "BUY_NO") return { label: "NO", className: "bg-red-500/20 text-red-400 border-red-500/30" };
-  return { label: "SKIP", className: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" };
+  if (rec === "BUY_YES") return { label: "YES", className: "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/30 font-bold tracking-wider" };
+  if (rec === "BUY_NO") return { label: "NO", className: "bg-neon-magenta/15 text-neon-magenta border-neon-magenta/30 font-bold tracking-wider" };
+  return { label: "SKIP", className: "bg-[#1a1a4a]/50 text-[#5a5a7a] border-[#2a2a5a]/30 tracking-wider" };
 }
 
 export default function DashboardPage() {
@@ -106,7 +106,7 @@ export default function DashboardPage() {
     },
     onError: (error: Error) => {
       if (error.name === "AbortError") {
-        toast.error("Scan timed out — try again or check results later");
+        toast.error("Scan timed out -- try again or check results later");
         queryClient.invalidateQueries({ queryKey: ["recommendations"] });
       } else {
         toast.error(error.message);
@@ -156,32 +156,36 @@ export default function DashboardPage() {
       value: stats?.winRate != null ? `${(stats.winRate * 100).toFixed(1)}%` : "\u2014%",
       description: stats?.totalResolved ? `${stats.totalResolved} resolved bets` : "No resolved bets",
       icon: TrendingUp,
-      accent: stats?.winRate != null ? (stats.winRate >= 0.6 ? "text-emerald-400" : stats.winRate >= 0.5 ? "text-amber-400" : "text-red-400") : "text-zinc-500",
-      iconBg: stats?.winRate != null ? "bg-emerald-500/10" : "bg-zinc-800/50",
+      accent: stats?.winRate != null ? (stats.winRate >= 0.5 ? "text-neon-cyan" : "text-neon-magenta") : "text-[#5a5a7a]",
+      iconBg: stats?.winRate != null ? (stats.winRate >= 0.5 ? "bg-neon-cyan/10" : "bg-neon-magenta/10") : "bg-[#1a1a4a]/50",
+      glowClass: stats?.winRate != null && stats.winRate >= 0.5 ? "glow-cyan" : "",
     },
     {
       title: "Total P&L",
       value: stats?.totalPnl != null ? formatPnl(stats.totalPnl) : "$0.00",
       description: "Lifetime profit/loss",
       icon: DollarSign,
-      accent: stats?.totalPnl > 0 ? "text-emerald-400" : stats?.totalPnl < 0 ? "text-red-400" : "text-zinc-500",
-      iconBg: stats?.totalPnl > 0 ? "bg-emerald-500/10" : stats?.totalPnl < 0 ? "bg-red-500/10" : "bg-zinc-800/50",
+      accent: stats?.totalPnl > 0 ? "text-neon-cyan" : stats?.totalPnl < 0 ? "text-neon-magenta" : "text-[#5a5a7a]",
+      iconBg: stats?.totalPnl > 0 ? "bg-neon-cyan/10" : stats?.totalPnl < 0 ? "bg-neon-magenta/10" : "bg-[#1a1a4a]/50",
+      glowClass: stats?.totalPnl > 0 ? "glow-cyan" : stats?.totalPnl < 0 ? "glow-magenta" : "",
     },
     {
       title: "Active Bets",
       value: String(stats?.activeCount ?? 0),
       description: "Open positions",
       icon: Target,
-      accent: stats?.activeCount > 0 ? "text-blue-400" : "text-zinc-500",
-      iconBg: stats?.activeCount > 0 ? "bg-blue-500/10" : "bg-zinc-800/50",
+      accent: stats?.activeCount > 0 ? "text-neon-purple" : "text-[#5a5a7a]",
+      iconBg: stats?.activeCount > 0 ? "bg-neon-purple/10" : "bg-[#1a1a4a]/50",
+      glowClass: "",
     },
     {
       title: "Bankroll",
       value: stats?.currentBankroll != null ? `$${Number(stats.currentBankroll).toFixed(2)}` : "$1,000.00",
       description: stats?.startingBankroll ? `Started at $${Number(stats.startingBankroll).toFixed(2)}` : "Paper trading",
       icon: Flame,
-      accent: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "text-emerald-400" : "text-red-400",
-      iconBg: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "bg-emerald-500/10" : "bg-red-500/10",
+      accent: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "text-neon-cyan" : "text-neon-magenta",
+      iconBg: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "bg-neon-cyan/10" : "bg-neon-magenta/10",
+      glowClass: (stats?.currentBankroll ?? 1000) >= (stats?.startingBankroll ?? 1000) ? "glow-cyan" : "glow-magenta",
     },
   ];
 
@@ -190,15 +194,15 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neon-cyan text-glow-cyan uppercase">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">{formatDate(today)}</p>
+          <p className="mt-1 text-sm text-[#7a7a9a]">{formatDate(today)}</p>
         </div>
         <Button
           onClick={() => runScan.mutate()}
           disabled={runScan.isPending}
-          className="bg-violet-600 hover:bg-violet-700 text-white font-semibold min-h-[44px]"
+          className="btn-neon-cyan font-semibold min-h-[44px] uppercase tracking-wider text-sm"
         >
           {runScan.isPending ? (
             <>
@@ -219,9 +223,9 @@ export default function DashboardPage() {
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="border-zinc-800/60 bg-zinc-900/50">
+            <Card key={stat.title} className={`cyber-card neon-border-pulse ${stat.glowClass}`}>
               <CardHeader className="flex-row items-center justify-between pb-2">
-                <CardDescription className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                <CardDescription className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.15em] text-[#7a7a9a]">
                   {stat.title}
                 </CardDescription>
                 <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.iconBg}`}>
@@ -230,7 +234,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className={`text-xl sm:text-2xl font-bold ${stat.accent}`}>{stat.value}</div>
-                <p className="mt-1 text-xs text-zinc-600">{stat.description}</p>
+                <p className="mt-1 text-[10px] sm:text-xs text-[#5a5a7a]">{stat.description}</p>
               </CardContent>
             </Card>
           );
@@ -241,21 +245,21 @@ export default function DashboardPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Today&apos;s Picks</h2>
-            <p className="text-sm text-zinc-500">AI-recommended trades</p>
+            <h2 className="text-lg font-semibold text-neon-cyan uppercase tracking-wider">Today&apos;s Picks</h2>
+            <p className="text-sm text-[#7a7a9a]">AI-recommended trades</p>
           </div>
-          <Badge variant="outline" className="border-zinc-700 text-zinc-400">
+          <Badge variant="outline" className="border-neon-cyan/30 text-neon-cyan/70 tracking-wider uppercase text-[10px]">
             {recommendations.length} pick{recommendations.length !== 1 ? "s" : ""}
           </Badge>
         </div>
 
         {recommendations.length === 0 ? (
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="cyber-card">
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/60">
-                <Inbox className="h-6 w-6 text-zinc-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a4a]/60">
+                <Inbox className="h-6 w-6 text-[#5a5a7a]" />
               </div>
-              <p className="mt-4 text-center text-sm text-zinc-500 max-w-sm">
+              <p className="mt-4 text-center text-sm text-[#7a7a9a] max-w-sm">
                 No recommendations yet. The scanner runs every 4 hours &mdash; check back soon.
               </p>
             </CardContent>
@@ -265,22 +269,29 @@ export default function DashboardPage() {
             {recommendations.filter((r: Record<string, unknown>) => r.recommendation !== "SKIP").map((rec: Record<string, unknown>) => {
               const badge = recommendationBadge(rec.recommendation as string);
               return (
-                <Card key={rec.id as string} className="border-zinc-800/60 bg-zinc-900/50">
-                  <CardContent className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
-                    <Badge className={badge.className}>{badge.label}</Badge>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
+                <Card key={rec.id as string} className="cyber-card overflow-hidden">
+                  <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:gap-4 sm:py-4">
+                    {/* Top row on mobile: badge + confidence */}
+                    <div className="flex items-center justify-between sm:contents">
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                      <div className="text-right shrink-0 sm:order-3">
+                        <p className={`text-sm font-semibold ${confidenceColor(rec.confidence as number)}`}>
+                          {rec.confidence as number}%
+                        </p>
+                        <p className="text-[10px] uppercase tracking-wider text-[#5a5a7a]">confidence</p>
+                      </div>
+                    </div>
+
+                    {/* Market info - properly constrained */}
+                    <div className="flex-1 min-w-0 sm:order-2">
+                      <p className="text-sm font-medium text-[#e0e0f0] truncate">
                         {(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
                       </p>
-                      <p className="text-xs text-zinc-500 truncate mt-0.5">{rec.reasoning as string}</p>
+                      <p className="text-xs text-[#5a5a7a] line-clamp-2 sm:truncate mt-0.5">{rec.reasoning as string}</p>
                     </div>
-                    <div className="text-right shrink-0 mr-2">
-                      <p className={`text-sm font-semibold ${confidenceColor(rec.confidence as number)}`}>
-                        {rec.confidence as number}%
-                      </p>
-                      <p className="text-xs text-zinc-600">confidence</p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 shrink-0 sm:order-4">
                       <Button
                         size="sm"
                         onClick={() =>
@@ -295,10 +306,10 @@ export default function DashboardPage() {
                         }
                         disabled={executeBet.isPending}
                         className={cn(
-                          "font-semibold",
+                          "font-semibold uppercase tracking-wider text-xs flex-1 sm:flex-none",
                           settingsData?.tradingMode === "real"
-                            ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            ? "bg-neon-magenta/20 hover:bg-neon-magenta/30 text-neon-magenta border border-neon-magenta/30"
+                            : "btn-neon-cyan"
                         )}
                       >
                         {executeBet.isPending ? (
@@ -330,44 +341,47 @@ export default function DashboardPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Active Bets</h2>
-            <p className="text-sm text-zinc-500">Currently open positions</p>
+            <h2 className="text-lg font-semibold text-neon-cyan uppercase tracking-wider">Active Bets</h2>
+            <p className="text-sm text-[#7a7a9a]">Currently open positions</p>
           </div>
-          <Badge variant="outline" className="border-zinc-700 text-zinc-400">
+          <Badge variant="outline" className="border-neon-cyan/30 text-neon-cyan/70 tracking-wider uppercase text-[10px]">
             {activeBets.length} active
           </Badge>
         </div>
 
         {activeBets.length === 0 ? (
-          <Card className="border-zinc-800/60 bg-zinc-900/50">
+          <Card className="cyber-card">
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800/60">
-                <CircleDot className="h-6 w-6 text-zinc-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a4a]/60">
+                <CircleDot className="h-6 w-6 text-[#5a5a7a]" />
               </div>
-              <p className="mt-4 text-sm text-zinc-500">No active bets</p>
+              <p className="mt-4 text-sm text-[#7a7a9a]">No active bets</p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-3">
             {activeBets.map((bet: Record<string, unknown>) => (
-              <Card key={bet.id as string} className="border-zinc-800/60 bg-zinc-900/50">
+              <Card key={bet.id as string} className="cyber-card">
                 <CardContent className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
-                  <Badge className={bet.side === "yes" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                  <Badge className={bet.side === "yes"
+                    ? "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/30 font-bold tracking-wider"
+                    : "bg-neon-magenta/15 text-neon-magenta border-neon-magenta/30 font-bold tracking-wider"
+                  }>
                     {(bet.side as string)?.toUpperCase()}
                   </Badge>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
+                    <p className="text-sm font-medium text-[#e0e0f0] truncate">
                       {(bet.marketTitle ?? bet.marketTicker) as string}
                     </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
+                    <p className="text-xs text-[#5a5a7a] mt-0.5">
                       {bet.contracts as number} contracts @ ${Number(bet.entryPrice).toFixed(2)} &middot; {bet.mode as string}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-zinc-300">
+                    <p className="text-sm font-semibold text-neon-yellow">
                       ${Number(bet.totalCost ?? 0).toFixed(2)}
                     </p>
-                    <p className="text-xs text-zinc-600">at risk</p>
+                    <p className="text-[10px] uppercase tracking-wider text-[#5a5a7a]">at risk</p>
                   </div>
                 </CardContent>
               </Card>
