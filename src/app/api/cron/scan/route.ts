@@ -160,10 +160,13 @@ async function runScan() {
     const endOfTomorrowUTC = new Date(Date.UTC(cstYear, cstMonth - 1, cstDay + 2, 6, 0, 0, 0));
 
     const kalshiMarkets = nonJunkMarkets.filter((m) => {
-      const closeTime = m.close_time ?? m.expected_expiration_time;
-      if (!closeTime) return false;
-      const closeDate = new Date(closeTime as string);
-      return closeDate.getTime() <= endOfTomorrowUTC.getTime();
+      // Prefer expected_expiration_time (actual resolve) over close_time (safety deadline).
+      // Kalshi sets close_time weeks out as a buffer, but expected_expiration_time
+      // reflects when the market actually resolves (e.g. end of tonight's game).
+      const resolveTime = m.expected_expiration_time ?? m.close_time;
+      if (!resolveTime) return false;
+      const resolveDate = new Date(resolveTime as string);
+      return resolveDate.getTime() <= endOfTomorrowUTC.getTime();
     });
 
     // Fetch the active strategy
