@@ -6,7 +6,7 @@ import { kalshi } from "@/lib/kalshi";
 import { aiEngine } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
 
-export const maxDuration = 300;
+export const maxDuration = 900;
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
