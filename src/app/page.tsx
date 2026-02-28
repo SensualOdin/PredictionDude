@@ -21,12 +21,12 @@ import {
 } from "lucide-react";
 import { PlaceBetDialog } from "@/components/place-bet-dialog";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatCST } from "@/lib/utils";
 
 const POLL_INTERVAL = 30_000;
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString("en-US", {
+  return formatCST(date, {
     weekday: "long",
     year: "numeric",
     month: "long",

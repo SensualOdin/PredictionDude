@@ -21,7 +21,7 @@ import {
   Loader2,
   Brain,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCST } from "@/lib/utils";
 
 function timeUntilClose(closeTime: string | null) {
   if (!closeTime) return "No close date";
@@ -354,7 +354,7 @@ export default function MarketDetailPage({
             <div>
               <p className="text-xs text-zinc-600">Close Time</p>
               <p className="text-sm font-medium text-zinc-300 mt-0.5">
-                {closeTime ? new Date(closeTime).toLocaleString() : "N/A"}
+                {formatCST(closeTime)}
               </p>
             </div>
             <div>

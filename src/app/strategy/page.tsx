@@ -25,7 +25,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCST } from "@/lib/utils";
 
 interface Strategy {
   id: string;
@@ -258,7 +258,7 @@ export default function StrategyPage() {
                       <p className="text-xs text-zinc-500">{s.changeReason}</p>
                     )}
                     <p className="text-[10px] text-zinc-600">
-                      {new Date(s.createdAt).toLocaleDateString()}
+                      {formatCST(s.createdAt, { month: "short", day: "numeric", year: "numeric" })}
                     </p>
                   </div>
                 ))}

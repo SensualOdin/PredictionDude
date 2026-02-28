@@ -152,21 +152,18 @@ async function runScan() {
       return vol > 0 || price > 0;
     });
 
-    // Only keep markets that resolve today or tomorrow (short-term bets).
-    // Kalshi close_time values are UTC ISO strings, so compare in UTC.
-    const now = new Date();
-    const endOfTomorrow = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + 2, // midnight after tomorrow UTC
-      0, 0, 0, 0,
-    ));
+    // Only keep markets that resolve today or tomorrow in CST (America/Chicago).
+    // Convert "now" to CST date parts, then compute end-of-tomorrow as a UTC timestamp.
+    const cstNow = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }); // "YYYY-MM-DD"
+    const [cstYear, cstMonth, cstDay] = cstNow.split("-").map(Number);
+    // End of tomorrow CST = start of day-after-tomorrow at 00:00 CST = 06:00 UTC (CST is UTC-6)
+    const endOfTomorrowUTC = new Date(Date.UTC(cstYear, cstMonth - 1, cstDay + 2, 6, 0, 0, 0));
 
     const kalshiMarkets = nonJunkMarkets.filter((m) => {
       const closeTime = m.close_time ?? m.expected_expiration_time;
       if (!closeTime) return false;
       const closeDate = new Date(closeTime as string);
-      return closeDate.getTime() <= endOfTomorrow.getTime();
+      return closeDate.getTime() <= endOfTomorrowUTC.getTime();
     });
 
     // Fetch the active strategy
