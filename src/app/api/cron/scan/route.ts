@@ -35,7 +35,7 @@ const MENTION_SERIES = [
   "KXSOTUMENTION",
 ];
 
-export const maxDuration = 900;
+export const maxDuration = 800;
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
@@ -201,9 +201,9 @@ async function runScan() {
       passesStrategyFilters(m, strategyRules),
     );
 
-    // Analyze up to 40 markets per scan. Each AI analysis with web search
-    // takes ~15-20s. Vercel Pro allows 900s max, so 40 markets ≈ 800s.
-    const MAX_MARKETS_PER_SCAN = 40;
+    // Analyze up to 35 markets per scan. Each AI analysis with web search
+    // takes ~15-20s. Vercel Pro allows 800s max, so 35 markets ≈ 700s.
+    const MAX_MARKETS_PER_SCAN = 35;
     const toAnalyze = eligible.slice(0, MAX_MARKETS_PER_SCAN);
 
     let recommendationsCreated = 0;
