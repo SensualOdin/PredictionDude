@@ -14,12 +14,10 @@ import {
   DollarSign,
   Target,
   Flame,
-  Inbox,
   CircleDot,
   Loader2,
   Radar,
 } from "lucide-react";
-import { PlaceBetDialog } from "@/components/place-bet-dialog";
 import { toast } from "sonner";
 import { cn, formatCST } from "@/lib/utils";
 
@@ -45,12 +43,6 @@ function confidenceColor(confidence: number) {
   return "text-[#7a7a9a]";
 }
 
-function recommendationBadge(rec: string) {
-  if (rec === "BUY_YES") return { label: "YES", className: "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/30 font-bold tracking-wider" };
-  if (rec === "BUY_NO") return { label: "NO", className: "bg-neon-magenta/15 text-neon-magenta border-neon-magenta/30 font-bold tracking-wider" };
-  return { label: "SKIP", className: "bg-[#1a1a4a]/50 text-[#5a5a7a] border-[#2a2a5a]/30 tracking-wider" };
-}
-
 export default function DashboardPage() {
   const today = new Date();
   const queryClient = useQueryClient();
@@ -61,27 +53,16 @@ export default function DashboardPage() {
     refetchInterval: POLL_INTERVAL,
   });
 
-  const { data: recsData } = useQuery({
-    queryKey: ["recommendations"],
-    queryFn: () => fetch("/api/recommendations?limit=10").then((r) => r.json()),
-    refetchInterval: POLL_INTERVAL,
-  });
-
   const { data: betsData } = useQuery({
     queryKey: ["activeBets"],
-    queryFn: () => fetch("/api/bets?status=open&limit=10").then((r) => r.json()),
+    queryFn: () => fetch("/api/bets?status=open&limit=20").then((r) => r.json()),
     refetchInterval: POLL_INTERVAL,
-  });
-
-  const { data: settingsData } = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => fetch("/api/settings").then((r) => r.json()),
   });
 
   const runScan = useMutation({
     mutationFn: async () => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 180_000); // 3 min client timeout
+      const timeout = setTimeout(() => controller.abort(), 180_000);
       try {
         const res = await fetch("/api/cron/scan", {
           method: "POST",
@@ -97,57 +78,22 @@ export default function DashboardPage() {
       }
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["recommendations"] });
-      queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["activeBets"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast.success(
-        `Scanned ${data.marketsScanned} markets, analyzed ${data.marketsAnalyzed}, ${data.recommendationsCreated} new picks`
+        `Scanned ${data.marketsScanned} markets, ${data.marketsQueued} queued for analysis`
       );
     },
     onError: (error: Error) => {
       if (error.name === "AbortError") {
         toast.error("Scan timed out -- try again or check results later");
-        queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+        queryClient.invalidateQueries({ queryKey: ["activeBets"] });
       } else {
         toast.error(error.message);
       }
     },
   });
 
-  const executeBet = useMutation({
-    mutationFn: async (data: {
-      marketTicker: string;
-      side: string;
-      contracts: number;
-      entryPrice: number;
-      mode: string;
-      recommendationId: string;
-    }) => {
-      const res = await fetch("/api/bets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Failed to place bet");
-      }
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["activeBets"] });
-      queryClient.invalidateQueries({ queryKey: ["stats"] });
-      queryClient.invalidateQueries({ queryKey: ["bets"] });
-      toast.success(
-        `Placed ${variables.side.toUpperCase()} x ${variables.contracts} on ${variables.marketTicker} (${variables.mode})`
-      );
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const recommendations = Array.isArray(recsData) ? recsData : recsData?.recommendations ?? [];
   const activeBets = betsData?.bets ?? [];
 
   const statCards = [
@@ -241,111 +187,15 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Today's Picks */}
+      {/* Active Positions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-neon-cyan uppercase tracking-wider">Today&apos;s Picks</h2>
-            <p className="text-sm text-[#7a7a9a]">AI-recommended trades</p>
+            <h2 className="text-lg font-semibold text-neon-cyan uppercase tracking-wider">Active Positions</h2>
+            <p className="text-sm text-[#7a7a9a]">Open bets with AI insights</p>
           </div>
           <Badge variant="outline" className="border-neon-cyan/30 text-neon-cyan/70 tracking-wider uppercase text-[10px]">
-            {recommendations.length} pick{recommendations.length !== 1 ? "s" : ""}
-          </Badge>
-        </div>
-
-        {recommendations.length === 0 ? (
-          <Card className="cyber-card">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a4a]/60">
-                <Inbox className="h-6 w-6 text-[#5a5a7a]" />
-              </div>
-              <p className="mt-4 text-center text-sm text-[#7a7a9a] max-w-sm">
-                No recommendations yet. The scanner runs every 4 hours &mdash; check back soon.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3">
-            {recommendations.filter((r: Record<string, unknown>) => r.recommendation !== "SKIP").map((rec: Record<string, unknown>) => {
-              const badge = recommendationBadge(rec.recommendation as string);
-              return (
-                <Card key={rec.id as string} className="cyber-card overflow-hidden">
-                  <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:gap-4 sm:py-4">
-                    {/* Top row on mobile: badge + confidence */}
-                    <div className="flex items-center justify-between sm:contents">
-                      <Badge className={badge.className}>{badge.label}</Badge>
-                      <div className="text-right shrink-0 sm:order-3">
-                        <p className={`text-sm font-semibold ${confidenceColor(rec.confidence as number)}`}>
-                          {rec.confidence as number}%
-                        </p>
-                        <p className="text-[10px] uppercase tracking-wider text-[#5a5a7a]">confidence</p>
-                      </div>
-                    </div>
-
-                    {/* Market info - properly constrained */}
-                    <div className="flex-1 min-w-0 sm:order-2">
-                      <p className="text-sm font-medium text-[#e0e0f0] truncate">
-                        {(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
-                      </p>
-                      <p className="text-xs text-[#5a5a7a] line-clamp-2 sm:truncate mt-0.5">{rec.reasoning as string}</p>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2 shrink-0 sm:order-4">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          executeBet.mutate({
-                            marketTicker: (rec.marketTicker ?? rec.market_ticker) as string,
-                            side: rec.recommendation === "BUY_NO" ? "no" : "yes",
-                            contracts: (rec.suggestedSize as number) ?? 10,
-                            entryPrice: 0.5,
-                            mode: settingsData?.tradingMode ?? "paper",
-                            recommendationId: rec.id as string,
-                          })
-                        }
-                        disabled={executeBet.isPending}
-                        className={cn(
-                          "font-semibold uppercase tracking-wider text-xs flex-1 sm:flex-none",
-                          settingsData?.tradingMode === "real"
-                            ? "bg-neon-magenta/20 hover:bg-neon-magenta/30 text-neon-magenta border border-neon-magenta/30"
-                            : "btn-neon-cyan"
-                        )}
-                      >
-                        {executeBet.isPending ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : settingsData?.tradingMode === "real" ? (
-                          "Execute (Real $)"
-                        ) : (
-                          "Execute"
-                        )}
-                      </Button>
-                      <PlaceBetDialog
-                        marketTicker={(rec.marketTicker ?? rec.market_ticker) as string}
-                        marketTitle={(rec.marketTitle ?? rec.market_ticker ?? rec.marketTicker) as string}
-                        currentYesPrice={0.5}
-                        recommendationId={rec.id as string}
-                        suggestedSide={rec.recommendation === "BUY_NO" ? "no" : "yes"}
-                        suggestedContracts={(rec.suggestedSize as number) ?? 10}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Active Bets */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-neon-cyan uppercase tracking-wider">Active Bets</h2>
-            <p className="text-sm text-[#7a7a9a]">Currently open positions</p>
-          </div>
-          <Badge variant="outline" className="border-neon-cyan/30 text-neon-cyan/70 tracking-wider uppercase text-[10px]">
-            {activeBets.length} active
+            {activeBets.length} position{activeBets.length !== 1 ? "s" : ""}
           </Badge>
         </div>
 
@@ -355,37 +205,64 @@ export default function DashboardPage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a4a]/60">
                 <CircleDot className="h-6 w-6 text-[#5a5a7a]" />
               </div>
-              <p className="mt-4 text-sm text-[#7a7a9a]">No active bets</p>
+              <p className="mt-4 text-center text-sm text-[#7a7a9a] max-w-sm">
+                No active positions. Hit &ldquo;Scan Now&rdquo; to find opportunities.
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-3">
-            {activeBets.map((bet: Record<string, unknown>) => (
-              <Card key={bet.id as string} className="cyber-card">
-                <CardContent className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
-                  <Badge className={bet.side === "yes"
-                    ? "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/30 font-bold tracking-wider"
-                    : "bg-neon-magenta/15 text-neon-magenta border-neon-magenta/30 font-bold tracking-wider"
-                  }>
-                    {(bet.side as string)?.toUpperCase()}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#e0e0f0] truncate">
-                      {(bet.marketTitle ?? bet.marketTicker) as string}
-                    </p>
-                    <p className="text-xs text-[#5a5a7a] mt-0.5">
-                      {bet.contracts as number} contracts @ ${Number(bet.entryPrice).toFixed(2)} &middot; {bet.mode as string}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-neon-yellow">
-                      ${Number(bet.totalCost ?? 0).toFixed(2)}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-wider text-[#5a5a7a]">at risk</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {activeBets.map((bet: Record<string, unknown>) => {
+              const confidence = bet.confidence as number | null;
+              const reasoning = bet.reasoning as string | null;
+              const keyRisk = bet.keyRisk as string | null;
+
+              return (
+                <Card key={bet.id as string} className="cyber-card overflow-hidden">
+                  <CardContent className="flex flex-col gap-3 py-3 sm:py-4">
+                    {/* Top row: badge + title + confidence */}
+                    <div className="flex items-start gap-3">
+                      <Badge className={bet.side === "yes"
+                        ? "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/30 font-bold tracking-wider shrink-0"
+                        : "bg-neon-magenta/15 text-neon-magenta border-neon-magenta/30 font-bold tracking-wider shrink-0"
+                      }>
+                        {(bet.side as string)?.toUpperCase()}
+                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#e0e0f0] truncate">
+                          {(bet.marketTitle ?? bet.marketTicker) as string}
+                        </p>
+                        <p className="text-xs text-[#5a5a7a] mt-0.5">
+                          {bet.contracts as number} contracts @ ${Number(bet.entryPrice).toFixed(2)} &middot; ${Number(bet.totalCost ?? 0).toFixed(2)} at risk &middot; {bet.mode as string}
+                        </p>
+                      </div>
+                      {confidence != null && (
+                        <div className="text-right shrink-0">
+                          <p className={cn("text-sm font-semibold", confidenceColor(confidence))}>
+                            {confidence}%
+                          </p>
+                          <p className="text-[10px] uppercase tracking-wider text-[#5a5a7a]">confidence</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AI reasoning + risk */}
+                    {(reasoning || keyRisk) && (
+                      <div className="pl-0 sm:pl-14 space-y-1">
+                        {reasoning && (
+                          <p className="text-xs text-[#7a7a9a] line-clamp-2">{reasoning}</p>
+                        )}
+                        {keyRisk && (
+                          <p className="text-xs text-neon-magenta/70 line-clamp-1">
+                            Risk: {keyRisk}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

@@ -172,6 +172,31 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
   }),
 }));
 
+// ─── Scan Queue ─────────────────────────────────────────────────────────────────
+
+export const scanQueue = pgTable("scan_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticker: text("ticker").notNull(),
+  eventTicker: text("event_ticker"),
+  seriesTicker: text("series_ticker"),
+  title: text("title").notNull(),
+  category: text("category"),
+  yesPrice: numeric("yes_price", { precision: 6, scale: 4 }),
+  volume24h: integer("volume_24h"),
+  closeTime: timestamp("close_time", { withTimezone: true }),
+  rawData: jsonb("raw_data").notNull(),
+  status: text("status").notNull().default("pending"),
+  processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  recommendationId: uuid("recommendation_id").references(() => recommendations.id),
+  scanBatchId: text("scan_batch_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export type ScanQueueItem = typeof scanQueue.$inferSelect;
+export type NewScanQueueItem = typeof scanQueue.$inferInsert;
+
 // ─── Settings ──────────────────────────────────────────────────────────────────
 
 export const settings = pgTable("settings", {

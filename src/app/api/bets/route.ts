@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { bets, markets } from "@/lib/db/schema";
+import { bets, markets, recommendations } from "@/lib/db/schema";
 import { eq, desc, and, SQL } from "drizzle-orm";
 import { kalshi } from "@/lib/kalshi";
 
@@ -36,9 +36,15 @@ export async function GET(request: NextRequest) {
         pnl: bets.pnl,
         placedAt: bets.placedAt,
         resolvedAt: bets.resolvedAt,
+        recommendationId: bets.recommendationId,
+        confidence: recommendations.confidence,
+        reasoning: recommendations.reasoning,
+        recommendation: recommendations.recommendation,
+        keyRisk: recommendations.keyRisk,
       })
       .from(bets)
       .leftJoin(markets, eq(bets.marketTicker, markets.ticker))
+      .leftJoin(recommendations, eq(bets.recommendationId, recommendations.id))
       .where(where)
       .orderBy(desc(bets.placedAt))
       .limit(limit);
@@ -87,7 +93,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "contracts must be >= 1" }, { status: 400 });
     }
 
-    const totalCost = (entryPrice * contracts).toFixed(4);
+    const costPerContract = side === "yes" ? entryPrice : (1 - entryPrice);
+    const totalCost = (costPerContract * contracts).toFixed(4);
     let kalshiOrderId: string | null = null;
 
     // For real mode, place order via Kalshi API

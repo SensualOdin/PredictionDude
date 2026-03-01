@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 
         let exitPriceNum: number;
         if (officiallySettled) {
-          exitPriceNum = betWon ? 1 : 0;
+          exitPriceNum = marketResult === "yes" ? 1 : 0;
         } else {
           // Virtual settlement — use actual yes price (in cents -> decimal)
           exitPriceNum = yesPrice / 100;

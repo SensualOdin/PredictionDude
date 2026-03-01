@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bets, markets, recommendations, settings, strategies } from "@/lib/db/schema";
+import { scanQueue, settings, strategies } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
-import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
-import { sendPushNotification } from "@/lib/push";
 import { categorizeMarket } from "@/lib/categorize";
 
 // Series tickers for game-specific sports markets (where the real action is)
@@ -91,18 +89,18 @@ function passesStrategyFilters(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/cron/scan
-// Vercel cron-compatible handler. Scans open Kalshi markets, filters them
-// against the active strategy, runs AI analysis, and stores recommendations.
+// GET /api/cron/scan — Vercel cron handler
+// POST /api/cron/scan — Manual trigger (no auth required, user-initiated)
+//
+// Fetches markets from Kalshi, filters them, and inserts eligible markets
+// into the scan_queue for async AI analysis. No AI calls happen here.
 // ---------------------------------------------------------------------------
 
-// POST /api/cron/scan — Manual trigger (no auth required, user-initiated)
 export async function POST() {
   return runScan();
 }
 
 export async function GET(request: NextRequest) {
-  // Auth check — skip if CRON_SECRET is not configured (allows local testing)
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get("authorization");
@@ -115,7 +113,6 @@ export async function GET(request: NextRequest) {
 }
 
 async function runScan() {
-
   try {
     // ---- Fetch sports markets from game-specific series ----
     const allMarkets: Record<string, unknown>[] = [];
@@ -158,16 +155,11 @@ async function runScan() {
     });
 
     // Only keep markets that resolve today or tomorrow in CST (America/Chicago).
-    // Convert "now" to CST date parts, then compute end-of-tomorrow as a UTC timestamp.
-    const cstNow = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }); // "YYYY-MM-DD"
+    const cstNow = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
     const [cstYear, cstMonth, cstDay] = cstNow.split("-").map(Number);
-    // End of tomorrow CST = start of day-after-tomorrow at 00:00 CST = 06:00 UTC (CST is UTC-6)
     const endOfTomorrowUTC = new Date(Date.UTC(cstYear, cstMonth - 1, cstDay + 2, 6, 0, 0, 0));
 
     const kalshiMarkets = nonJunkMarkets.filter((m) => {
-      // Prefer expected_expiration_time (actual resolve) over close_time (safety deadline).
-      // Kalshi sets close_time weeks out as a buffer, but expected_expiration_time
-      // reflects when the market actually resolves (e.g. end of tonight's game).
       const resolveTime = m.expected_expiration_time ?? m.close_time;
       if (!resolveTime) return false;
       const resolveDate = new Date(resolveTime as string);
@@ -180,10 +172,6 @@ async function runScan() {
       .from(strategies)
       .where(eq(strategies.status, "active"))
       .limit(1);
-
-    // Read confidence threshold from settings
-    const [userSettings] = await db.select().from(settings).limit(1);
-    const minConfidenceThreshold = userSettings?.minConfidenceThreshold ?? 75;
 
     // Strategy rules may be nested under a "filters" key or flat — normalize
     const rawRules = (activeStrategy?.rules ?? {}) as Record<string, unknown>;
@@ -201,143 +189,60 @@ async function runScan() {
       passesStrategyFilters(m, strategyRules),
     );
 
-    // Analyze up to 35 markets per scan. Each AI analysis with web search
-    // takes ~15-20s. Vercel Pro allows 800s max, so 35 markets ≈ 700s.
-    const MAX_MARKETS_PER_SCAN = 35;
-    const toAnalyze = eligible.slice(0, MAX_MARKETS_PER_SCAN);
+    // Clean up old queue items (>24h)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await db.delete(scanQueue).where(lt(scanQueue.createdAt, oneDayAgo));
 
-    let recommendationsCreated = 0;
-    let betsPlaced = 0;
+    // Bulk insert eligible markets into scan_queue
+    const scanBatchId = `scan_${Date.now()}`;
+    let queued = 0;
 
-    for (const market of toAnalyze) {
+    for (const market of eligible) {
       const ticker = String(market.ticker);
+      const yesPrice = Number(market.yes_bid ?? market.yes_ask ?? 0) / 100;
+      const closeTime = market.expected_expiration_time ?? market.close_time;
 
       try {
-        // Fetch orderbook for depth summary
-        const orderbookResponse = await kalshi.getOrderbook(ticker);
-        const orderbook = orderbookResponse.orderbook ?? orderbookResponse;
-        const yesAsks = orderbook?.yes?.length ?? 0;
-        const noAsks = orderbook?.no?.length ?? 0;
-        const orderbookSummary = `${yesAsks} YES levels, ${noAsks} NO levels`;
-
-        // Run AI analysis
-        const analysis = await aiEngine.analyzeMarket({
+        await db.insert(scanQueue).values({
+          ticker,
+          eventTicker: (market.event_ticker as string) ?? null,
+          seriesTicker: (market.series_ticker as string) ?? null,
           title: String(market.title ?? ticker),
-          category: String(market.category ?? "unknown"),
-          yes_price: Number(market.yes_bid ?? market.yes_ask ?? 0) / 100,
-          volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
-          close_time: String(
-            market.expected_expiration_time ?? market.close_time ?? "",
-          ),
-          orderbook_summary: orderbookSummary,
-          strategy_rules: strategyRules as Record<string, unknown>,
-          historical_performance: await getHistoricalPerformance(String(market.category ?? "unknown")),
-        });
-
-        if (!analysis) continue;
-
-        // Upsert market into local DB
-        await db
-          .insert(markets)
-          .values({
-            ticker,
-            title: String(market.title ?? ticker),
-            category: (market.category as string) ?? null,
-            eventTicker: (market.event_ticker as string) ?? null,
-            seriesTicker: (market.series_ticker as string) ?? null,
-            status: String(market.status ?? "open"),
-            yesPrice: (Number(market.yes_bid ?? market.yes_ask ?? 0) / 100).toFixed(4),
-            volume24h: Number(market.volume_24h ?? market.volume ?? 0),
-            closeTime: (market.expected_expiration_time ?? market.close_time)
-              ? new Date((market.expected_expiration_time ?? market.close_time) as string)
-              : null,
-            rawData: market,
-            lastSynced: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: markets.ticker,
-            set: {
-              title: String(market.title ?? ticker),
-              status: String(market.status ?? "open"),
-              yesPrice: (Number(market.yes_bid ?? market.yes_ask ?? 0) / 100).toFixed(4),
-              volume24h: Number(market.volume_24h ?? market.volume ?? 0),
-              rawData: market,
-              lastSynced: new Date(),
-            },
-          });
-
-        // Store the recommendation
-        const [rec] = await db.insert(recommendations).values({
-          marketTicker: ticker,
-          strategyId: activeStrategy?.id ?? null,
-          recommendation: analysis.recommendation,
-          confidence: analysis.confidence,
-          suggestedSize: analysis.suggested_size,
-          reasoning: analysis.reasoning,
-          keyRisk: analysis.key_risk,
-          dataSources: analysis.data_sources,
-        }).returning();
-
-        // Auto-place paper bet + send push if confidence meets threshold
-        if (analysis.confidence >= minConfidenceThreshold && analysis.recommendation !== "SKIP") {
-          const side = analysis.recommendation === "BUY_YES" ? "yes" : "no";
-          const entryPrice = Number(market.yes_bid ?? market.yes_ask ?? 0) / 100;
-          const contracts = analysis.suggested_size ?? 1;
-          const totalCost = entryPrice * contracts;
-
-          // Check bankroll before placing bet
-          const currentBankroll = Number(userSettings?.currentBankroll ?? 0);
-          if (totalCost > currentBankroll) {
-            console.log(`[Cron/Scan] Skipping ${ticker}: cost $${totalCost.toFixed(2)} exceeds bankroll $${currentBankroll.toFixed(2)}`);
-            continue;
-          }
-
-          await db.insert(bets).values({
-            marketTicker: ticker,
-            recommendationId: rec.id,
-            mode: "paper",
-            side,
-            action: "buy",
-            entryPrice: entryPrice.toFixed(4),
-            contracts,
-            totalCost: totalCost.toFixed(4),
-            status: "open",
-          });
-
-          // Deduct cost from bankroll
-          await db.update(settings).set({
-            currentBankroll: (currentBankroll - totalCost).toFixed(2),
-          }).where(eq(settings.id, userSettings!.id));
-
-          betsPlaced++;
-
-          await sendPushNotification(
-            {
-              title: `Auto-bet: ${analysis.confidence}% confidence`,
-              body: `${String(market.title)} — ${side.toUpperCase()} x${contracts}`,
-              url: `/markets/${ticker}`,
-            },
-            { recommendationId: rec.id, type: "new_opportunity" }
-          );
-        }
-
-        recommendationsCreated++;
-      } catch (marketError) {
-        console.error(
-          `[Cron/Scan] Failed to process market ${ticker}:`,
-          marketError,
-        );
-        // Continue processing remaining markets
+          category: (market.category as string) ?? null,
+          yesPrice: yesPrice.toFixed(4),
+          volume24h: Number(market.volume_24h ?? market.volume ?? 0),
+          closeTime: closeTime ? new Date(closeTime as string) : null,
+          rawData: market,
+          status: "pending",
+          scanBatchId,
+        }).onConflictDoNothing();
+        queued++;
+      } catch (err) {
+        console.error(`[Cron/Scan] Failed to queue ${ticker}:`, err);
       }
+    }
+
+    // Fire off analyze endpoint (non-blocking) for immediate processing
+    try {
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      fetch(`${baseUrl}/api/cron/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).catch(() => {
+        // Non-blocking — if it fails, the cron schedule will pick it up
+      });
+    } catch {
+      // Non-blocking
     }
 
     return NextResponse.json({
       success: true,
       marketsScanned: kalshiMarkets.length,
       marketsEligible: eligible.length,
-      marketsAnalyzed: toAnalyze.length,
-      recommendationsCreated,
-      betsPlaced,
+      marketsQueued: queued,
+      scanBatchId,
       strategyUsed: activeStrategy?.name ?? "default (no active strategy)",
     });
   } catch (error) {

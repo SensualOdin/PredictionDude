@@ -5,6 +5,10 @@
       "schedule": "0 8,12,16,20 * * *"
     },
     {
+      "path": "/api/cron/analyze",
+      "schedule": "*/2 8-21 * * *"
+    },
+    {
       "path": "/api/cron/resolve",
       "schedule": "0 20 * * *"
     },
