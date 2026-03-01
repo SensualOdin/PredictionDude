@@ -49,6 +49,7 @@ async function runAnalyze() {
         WHERE status = 'pending'
            OR (status = 'processing' AND processing_started_at < ${fiveMinAgo.toISOString()}::timestamptz)
         ORDER BY created_at ASC
+        LIMIT 40
         FOR UPDATE SKIP LOCKED
       )
       RETURNING *
