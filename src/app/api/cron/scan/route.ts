@@ -5,21 +5,16 @@ import { scanQueue, settings, strategies } from "@/lib/db/schema";
 import { kalshi } from "@/lib/kalshi";
 import { categorizeMarket } from "@/lib/categorize";
 
-// Series tickers for game-specific sports markets (where the real action is)
+// Series tickers — game winners + spreads only (no O/U, player props, parlays)
 const SPORTS_SERIES = [
   "KXNBAGAME",     // NBA game winners
   "KXNBASPREAD",   // NBA spreads
-  "KXNBAOU",       // NBA over/unders
-  "KXCBBML",       // College basketball moneylines
   "KXCBBGAME",     // College basketball game winners
   "KXCBBSPREAD",   // College basketball spreads
-  "KXCBBOU",       // College basketball over/unders
   "KXNHLGAME",     // NHL game winners
   "KXNHLSPREAD",   // NHL spreads
-  "KXNHLOU",       // NHL over/unders
   "KXNFLGAME",     // NFL game winners
   "KXNFLSPREAD",   // NFL spreads
-  "KXNFLOU",       // NFL over/unders
   "KXMLBGAME",     // MLB game winners
   "KXMLBSPREAD",   // MLB spreads
 ];
