@@ -56,7 +56,7 @@ export default function DashboardPage() {
 
   const { data: betsData } = useQuery({
     queryKey: ["activeBets"],
-    queryFn: () => fetch("/api/bets?status=open&limit=20").then((r) => r.json()),
+    queryFn: () => fetch("/api/bets?status=open&limit=500").then((r) => r.json()),
     refetchInterval: POLL_INTERVAL,
   });
 

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { bets, markets, recommendations } from "@/lib/db/schema";
 import { eq, desc, and, SQL } from "drizzle-orm";
 import { kalshi } from "@/lib/kalshi";
+import { computeBankroll } from "@/lib/db/bankroll";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,16 @@ export async function POST(request: NextRequest) {
 
     const costPerContract = side === "yes" ? entryPrice : (1 - entryPrice);
     const totalCost = (costPerContract * contracts).toFixed(4);
+
+    // Check bankroll before placing
+    const { bankroll } = await computeBankroll();
+    if (Number(totalCost) > bankroll) {
+      return NextResponse.json(
+        { error: `Insufficient bankroll: $${bankroll.toFixed(2)} available, bet costs $${totalCost}` },
+        { status: 400 },
+      );
+    }
+
     let kalshiOrderId: string | null = null;
 
     // For real mode, place order via Kalshi API

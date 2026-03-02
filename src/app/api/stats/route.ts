@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { bets, settings } from "@/lib/db/schema";
+import { bets } from "@/lib/db/schema";
 import { eq, isNotNull, sql, desc } from "drizzle-orm";
+import { computeBankroll } from "@/lib/db/bankroll";
 
 export const dynamic = "force-dynamic";
 
@@ -53,17 +54,7 @@ export async function GET() {
     }
 
     // Bankroll — compute from first principles to prevent drift
-    const [userSettings] = await db.select().from(settings).limit(1);
-    const startingBankroll = Number(userSettings?.startingBankroll ?? 1000);
-
-    // Open bets have cost deducted but no pnl yet
-    const openCostResult = await db
-      .select({ total: sql<string>`COALESCE(SUM(total_cost::numeric), 0)` })
-      .from(bets)
-      .where(eq(bets.status, "open"));
-    const openCost = Number(openCostResult[0]?.total ?? 0);
-
-    const currentBankroll = startingBankroll + totalPnl - openCost;
+    const { bankroll: currentBankroll, startingBankroll } = await computeBankroll();
 
     return NextResponse.json({
       winRate,

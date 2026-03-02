@@ -5,6 +5,7 @@ import { bets, markets, recommendations, scanQueue, settings, strategies } from 
 import { kalshi } from "@/lib/kalshi";
 import { aiEngine, getHistoricalPerformance } from "@/lib/ai";
 import { sendPushNotification } from "@/lib/push";
+import { computeBankroll } from "@/lib/db/bankroll";
 
 export const maxDuration = 800;
 export const dynamic = "force-dynamic";
@@ -72,7 +73,7 @@ async function runAnalyze() {
 
     const [userSettings] = await db.select().from(settings).limit(1);
     const minConfidenceThreshold = userSettings?.minConfidenceThreshold ?? 75;
-    let bankroll = Number(userSettings?.currentBankroll ?? 0);
+    let bankroll = (await computeBankroll()).bankroll;
 
     // Strategy rules
     const rawRules = (activeStrategy?.rules ?? {}) as Record<string, unknown>;
@@ -247,13 +248,6 @@ async function runAnalyze() {
           failed++;
         }
       }
-    }
-
-    // Persist updated bankroll
-    if (betsPlaced > 0 && userSettings) {
-      await db.update(settings).set({
-        currentBankroll: bankroll.toFixed(2),
-      }).where(eq(settings.id, userSettings.id));
     }
 
     return NextResponse.json({
