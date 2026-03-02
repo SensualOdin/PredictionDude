@@ -36,8 +36,8 @@ export interface HitMissAnalysis {
 
 // ---- Constants ------------------------------------------------------------
 
-const MODEL = "kimi-k2-0711";
-const MAX_TOKENS = 4096;
+const MODEL = "kimi-k2.5";
+const MAX_TOKENS = 8192;
 
 // ---- Helpers --------------------------------------------------------------
 
@@ -107,7 +107,7 @@ export class AIEngine {
     if (!this._client) {
       this._client = new OpenAI({
         apiKey: process.env.KIMI_API_KEY,
-        baseURL: "https://api.moonshot.cn/v1",
+        baseURL: "https://api.moonshot.ai/v1",
       });
     }
     return this._client;
@@ -131,16 +131,16 @@ export class AIEngine {
         messages: [
           {
             role: "system",
-            content: "You are an expert sports betting analyst. Always respond with valid JSON only, no extra text.",
+            content: "You are an expert sports betting analyst. Think through your analysis carefully, then respond with ONLY valid JSON (no markdown, no extra text). The JSON must contain: recommendation, confidence, suggested_size, reasoning, key_risk, data_sources.",
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
       });
 
+      // Kimi K2.5 uses reasoning_content for thinking, content for the answer
       const text = response.choices[0]?.message?.content;
       if (!text) {
-        console.error("[AIEngine] No text in Kimi response");
+        console.error("[AIEngine] No content in Kimi response (may have exhausted tokens on reasoning)");
         return null;
       }
 
@@ -168,16 +168,15 @@ export class AIEngine {
         messages: [
           {
             role: "system",
-            content: "You are an expert sports betting analyst doing post-mortem analysis. Always respond with valid JSON only, no extra text.",
+            content: "You are an expert sports betting analyst doing post-mortem analysis. Think through your analysis carefully, then respond with ONLY valid JSON (no markdown, no extra text). The JSON must contain: thesis_correct, reasoning, patterns, proposed_update.",
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
       });
 
       const text = response.choices[0]?.message?.content;
       if (!text) {
-        console.error("[AIEngine] No text in Kimi response");
+        console.error("[AIEngine] No content in Kimi response");
         return null;
       }
 
