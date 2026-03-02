@@ -52,10 +52,18 @@ export async function GET() {
       }
     }
 
-    // Bankroll
+    // Bankroll — compute from first principles to prevent drift
     const [userSettings] = await db.select().from(settings).limit(1);
     const startingBankroll = Number(userSettings?.startingBankroll ?? 1000);
-    const currentBankroll = Number(userSettings?.currentBankroll ?? 1000);
+
+    // Open bets have cost deducted but no pnl yet
+    const openCostResult = await db
+      .select({ total: sql<string>`COALESCE(SUM(total_cost::numeric), 0)` })
+      .from(bets)
+      .where(eq(bets.status, "open"));
+    const openCost = Number(openCostResult[0]?.total ?? 0);
+
+    const currentBankroll = startingBankroll + totalPnl - openCost;
 
     return NextResponse.json({
       winRate,
