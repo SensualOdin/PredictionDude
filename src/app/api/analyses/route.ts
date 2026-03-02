@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { analyses, bets, recommendations, markets } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { aiEngine } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
@@ -136,5 +136,30 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[Analyses API] POST failed:", error);
     return NextResponse.json({ error: "Failed to create analysis" }, { status: 500 });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/analyses — Clear proposed_update on applied/dismissed analyses
+// ---------------------------------------------------------------------------
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { ids } = body as { ids: string[] };
+
+    if (!ids || ids.length === 0) {
+      return NextResponse.json({ error: "ids array is required" }, { status: 400 });
+    }
+
+    await db
+      .update(analyses)
+      .set({ proposedUpdate: "none" })
+      .where(inArray(analyses.id, ids));
+
+    return NextResponse.json({ cleared: ids.length });
+  } catch (error) {
+    console.error("[Analyses API] PATCH failed:", error);
+    return NextResponse.json({ error: "Failed to update analyses" }, { status: 500 });
   }
 }

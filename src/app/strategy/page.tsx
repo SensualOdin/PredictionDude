@@ -83,15 +83,27 @@ export default function StrategyPage() {
     queryFn: () => fetch("/api/analyses?limit=10").then((r) => r.json()),
   });
 
+  const clearAnalyses = async (ids: string[]) => {
+    await fetch("/api/analyses", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    queryClient.invalidateQueries({ queryKey: ["analyses"] });
+  };
+
   const applyProposal = useMutation({
-    mutationFn: async ({ rules, changeReason }: { rules: Record<string, unknown>; changeReason: string }) => {
+    mutationFn: async ({ rules, changeReason, analysisIds }: { rules: Record<string, unknown>; changeReason: string; analysisIds: string[] }) => {
       const res = await fetch("/api/strategies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rules, changeReason }),
       });
       if (!res.ok) throw new Error("Failed to create strategy");
-      return res.json();
+      const data = await res.json();
+      // Clear the applied proposals
+      await clearAnalyses(analysisIds);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["strategies"] });
@@ -289,6 +301,7 @@ export default function StrategyPage() {
                     applyProposal.mutate({
                       rules: { ...rules, _appliedLearnings: proposals.map((p) => p.proposedUpdate) },
                       changeReason: `Applied ${proposals.length} AI learnings: ${proposals.map((p) => p.proposedUpdate).join("; ")}`,
+                      analysisIds: proposals.map((p) => p.id),
                     })
                   }
                   disabled={applyProposal.isPending}
@@ -344,6 +357,7 @@ export default function StrategyPage() {
                           applyProposal.mutate({
                             rules: { ...rules, _appliedLearning: a.proposedUpdate },
                             changeReason: `Applied AI learning: ${a.proposedUpdate}`,
+                            analysisIds: [a.id],
                           })
                         }
                         disabled={applyProposal.isPending}
@@ -361,6 +375,7 @@ export default function StrategyPage() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => clearAnalyses([a.id])}
                         className="text-zinc-500 hover:text-zinc-300 text-xs h-7"
                       >
                         <X className="mr-1 h-3 w-3" />
