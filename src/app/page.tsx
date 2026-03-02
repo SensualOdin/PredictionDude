@@ -17,6 +17,7 @@ import {
   CircleDot,
   Loader2,
   Radar,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCST } from "@/lib/utils";
@@ -94,6 +95,31 @@ export default function DashboardPage() {
     },
   });
 
+  const runResolve = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/cron/resolve", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Resolve failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["activeBets"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      if (data.resolved > 0) {
+        toast.success(
+          `Resolved ${data.resolved} bets: ${data.won} won, ${data.lost} lost`
+        );
+      } else {
+        toast(`Checked ${data.openBetsChecked} bets — none resolved yet`);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const activeBets = betsData?.bets ?? [];
 
   const statCards = [
@@ -145,23 +171,43 @@ export default function DashboardPage() {
           </h1>
           <p className="mt-1 text-sm text-[#7a7a9a]">{formatDate(today)}</p>
         </div>
-        <Button
-          onClick={() => runScan.mutate()}
-          disabled={runScan.isPending}
-          className="btn-neon-cyan font-semibold min-h-[44px] uppercase tracking-wider text-sm"
-        >
-          {runScan.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Scanning...
-            </>
-          ) : (
-            <>
-              <Radar className="mr-2 h-4 w-4" />
-              Scan Now
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => runResolve.mutate()}
+            disabled={runResolve.isPending}
+            variant="outline"
+            className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10 font-semibold min-h-[44px] uppercase tracking-wider text-sm"
+          >
+            {runResolve.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Checking...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Resolve
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={() => runScan.mutate()}
+            disabled={runScan.isPending}
+            className="btn-neon-cyan font-semibold min-h-[44px] uppercase tracking-wider text-sm"
+          >
+            {runScan.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Scanning...
+              </>
+            ) : (
+              <>
+                <Radar className="mr-2 h-4 w-4" />
+                Scan
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Stat Cards */}

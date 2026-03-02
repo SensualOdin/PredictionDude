@@ -15,17 +15,7 @@ export const dynamic = "force-dynamic";
 // if markets have settled. Updates bet status, P&L, and outcome accordingly.
 // ---------------------------------------------------------------------------
 
-export async function GET(request: NextRequest) {
-  // Auth check — skip if CRON_SECRET is not configured (allows local testing)
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
-
-  try {
+async function resolveOpenBets() {
     // Fetch all open bets from DB
     const openBets = await db
       .select()
@@ -193,19 +183,44 @@ export async function GET(request: NextRequest) {
       }).where(eq(settings.id, userSettings.id));
     }
 
-    return NextResponse.json({
+    return {
       success: true,
       openBetsChecked: openBets.length,
       resolved,
       won,
       lost,
       bankroll: bankroll.toFixed(2),
-    });
+    };
   } catch (error) {
     console.error("[Cron/Resolve] Resolve failed:", error);
-    return NextResponse.json(
-      { error: "Cron resolve failed" },
-      { status: 500 },
-    );
+    throw error;
+  }
+}
+
+// GET — Vercel cron (auth required)
+export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
+  try {
+    const result = await resolveOpenBets();
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json({ error: "Cron resolve failed" }, { status: 500 });
+  }
+}
+
+// POST — Manual trigger from dashboard (no auth needed for same-origin)
+export async function POST() {
+  try {
+    const result = await resolveOpenBets();
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json({ error: "Resolve failed" }, { status: 500 });
   }
 }
