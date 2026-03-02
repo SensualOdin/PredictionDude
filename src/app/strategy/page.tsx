@@ -274,7 +274,7 @@ export default function StrategyPage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800/50">
                 <GitPullRequestDraft className="h-4 w-4 text-zinc-500" />
               </div>
-              <div>
+              <div className="flex-1">
                 <CardTitle className="text-sm font-semibold text-zinc-200">
                   Proposed Changes
                 </CardTitle>
@@ -282,6 +282,28 @@ export default function StrategyPage() {
                   AI-suggested strategy tweaks
                 </CardDescription>
               </div>
+              {proposals.length >= 2 && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    applyProposal.mutate({
+                      rules: { ...rules, _appliedLearnings: proposals.map((p) => p.proposedUpdate) },
+                      changeReason: `Applied ${proposals.length} AI learnings: ${proposals.map((p) => p.proposedUpdate).join("; ")}`,
+                    })
+                  }
+                  disabled={applyProposal.isPending}
+                  className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 text-xs h-7 shrink-0"
+                >
+                  {applyProposal.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="mr-1 h-3 w-3" />
+                      Apply All ({proposals.length})
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
