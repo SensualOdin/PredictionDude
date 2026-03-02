@@ -83,14 +83,20 @@ export default function StrategyPage() {
     queryFn: () => fetch("/api/analyses?limit=10").then((r) => r.json()),
   });
 
-  const clearAnalyses = async (ids: string[]) => {
-    await fetch("/api/analyses", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    });
-    queryClient.invalidateQueries({ queryKey: ["analyses"] });
-  };
+  const dismissProposal = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await fetch("/api/analyses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error("Failed to dismiss");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["analyses"] });
+    },
+  });
 
   const applyProposal = useMutation({
     mutationFn: async ({ rules, changeReason, analysisIds }: { rules: Record<string, unknown>; changeReason: string; analysisIds: string[] }) => {
@@ -102,7 +108,7 @@ export default function StrategyPage() {
       if (!res.ok) throw new Error("Failed to create strategy");
       const data = await res.json();
       // Clear the applied proposals
-      await clearAnalyses(analysisIds);
+      await dismissProposal.mutateAsync(analysisIds);
       return data;
     },
     onSuccess: () => {
@@ -375,10 +381,15 @@ export default function StrategyPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => clearAnalyses([a.id])}
+                        onClick={() => dismissProposal.mutate([a.id])}
+                        disabled={dismissProposal.isPending}
                         className="text-zinc-500 hover:text-zinc-300 text-xs h-7"
                       >
-                        <X className="mr-1 h-3 w-3" />
+                        {dismissProposal.isPending ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <X className="mr-1 h-3 w-3" />
+                        )}
                         Dismiss
                       </Button>
                     </div>
