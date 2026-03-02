@@ -315,6 +315,36 @@ export default function StrategyPage() {
                     {a.marketTitle && (
                       <p className="text-xs text-zinc-600 truncate">{a.marketTitle}</p>
                     )}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          applyProposal.mutate({
+                            rules: { ...rules, _appliedLearning: a.proposedUpdate },
+                            changeReason: `Applied AI learning: ${a.proposedUpdate}`,
+                          })
+                        }
+                        disabled={applyProposal.isPending}
+                        className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 text-xs h-7"
+                      >
+                        {applyProposal.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <Check className="mr-1 h-3 w-3" />
+                            Apply
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-zinc-500 hover:text-zinc-300 text-xs h-7"
+                      >
+                        <X className="mr-1 h-3 w-3" />
+                        Dismiss
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
