@@ -101,13 +101,16 @@ function validateHitMissAnalysis(obj: unknown): HitMissAnalysis {
 // ---- Engine ---------------------------------------------------------------
 
 export class AIEngine {
-  private client: OpenAI;
+  private _client: OpenAI | null = null;
 
-  constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.KIMI_API_KEY,
-      baseURL: "https://api.moonshot.cn/v1",
-    });
+  private get client(): OpenAI {
+    if (!this._client) {
+      this._client = new OpenAI({
+        apiKey: process.env.KIMI_API_KEY,
+        baseURL: "https://api.moonshot.cn/v1",
+      });
+    }
+    return this._client;
   }
 
   /**
