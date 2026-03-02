@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// AI Engine — wraps the Anthropic SDK to provide structured market analysis
-// and hit/miss post-mortem capabilities for the Kalshi AI Trader.
+// AI Engine — wraps the OpenAI-compatible SDK to provide structured market
+// analysis and hit/miss post-mortem capabilities for the Kalshi AI Trader.
+// Currently using Kimi K2.5 (Moonshot AI).
 // ---------------------------------------------------------------------------
 
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 import {
   buildMarketAnalysisPrompt,
@@ -34,7 +35,7 @@ export interface HitMissAnalysis {
 
 // ---- Constants ------------------------------------------------------------
 
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "kimi-k2-0711";
 const MAX_TOKENS = 4096;
 
 // ---- Helpers --------------------------------------------------------------
@@ -99,15 +100,17 @@ function validateHitMissAnalysis(obj: unknown): HitMissAnalysis {
 // ---- Engine ---------------------------------------------------------------
 
 export class AIEngine {
-  private client: Anthropic;
+  private client: OpenAI;
 
   constructor() {
-    // The Anthropic SDK reads ANTHROPIC_API_KEY from the environment by default.
-    this.client = new Anthropic();
+    this.client = new OpenAI({
+      apiKey: process.env.KIMI_API_KEY,
+      baseURL: "https://api.moonshot.cn/v1",
+    });
   }
 
   /**
-   * Sends market data to Claude and returns a structured trade recommendation.
+   * Sends market data to Kimi and returns a structured trade recommendation.
    * Returns `null` if the call or parsing fails.
    */
   async analyzeMarket(
@@ -116,45 +119,26 @@ export class AIEngine {
     try {
       const prompt = buildMarketAnalysisPrompt(params);
 
-      const webSearchTool = {
-        type: "web_search_20250305" as const,
-        name: "web_search" as const,
-        max_uses: 3,
-      };
-
-      let response = await this.client.messages.create({
+      const response = await this.client.chat.completions.create({
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        messages: [{ role: "user", content: prompt }],
-        tools: [webSearchTool],
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert sports betting analyst. Always respond with valid JSON only, no extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
       });
 
-      // Handle pause_turn: Claude may pause mid-search and need a nudge
-      while (response.stop_reason === "pause_turn") {
-        response = await this.client.messages.create({
-          model: MODEL,
-          max_tokens: MAX_TOKENS,
-          messages: [
-            { role: "user", content: prompt },
-            { role: "assistant", content: response.content },
-            { role: "user", content: "Please continue your analysis." },
-          ],
-          tools: [webSearchTool],
-        });
-      }
-
-      // Extract the LAST text block (Claude puts final JSON after search results)
-      const textBlocks = response.content.filter(
-        (block): block is Anthropic.TextBlock => block.type === "text",
-      );
-      const lastTextBlock = textBlocks[textBlocks.length - 1];
-
-      if (!lastTextBlock) {
-        console.error("[AIEngine] No text block in Claude response");
+      const text = response.choices[0]?.message?.content;
+      if (!text) {
+        console.error("[AIEngine] No text in Kimi response");
         return null;
       }
 
-      const parsed = extractJSON<unknown>(lastTextBlock.text);
+      const parsed = extractJSON<unknown>(text);
       return validateAIAnalysis(parsed);
     } catch (error) {
       console.error("[AIEngine] analyzeMarket failed:", error);
@@ -163,7 +147,7 @@ export class AIEngine {
   }
 
   /**
-   * Sends resolved bet details to Claude for post-mortem analysis.
+   * Sends resolved bet details to Kimi for post-mortem analysis.
    * Returns `null` if the call or parsing fails.
    */
   async analyzeOutcome(
@@ -172,22 +156,26 @@ export class AIEngine {
     try {
       const prompt = buildHitMissAnalysisPrompt(params);
 
-      const response = await this.client.messages.create({
+      const response = await this.client.chat.completions.create({
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert sports betting analyst doing post-mortem analysis. Always respond with valid JSON only, no extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
       });
 
-      // Extract the text content from the response
-      const textBlock = response.content.find(
-        (block) => block.type === "text",
-      );
-      if (!textBlock || textBlock.type !== "text") {
-        console.error("[AIEngine] No text block in Claude response");
+      const text = response.choices[0]?.message?.content;
+      if (!text) {
+        console.error("[AIEngine] No text in Kimi response");
         return null;
       }
 
-      const parsed = extractJSON<unknown>(textBlock.text);
+      const parsed = extractJSON<unknown>(text);
       return validateHitMissAnalysis(parsed);
     } catch (error) {
       console.error("[AIEngine] analyzeOutcome failed:", error);
