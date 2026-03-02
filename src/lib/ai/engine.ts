@@ -12,6 +12,7 @@ import {
   type MarketAnalysisPromptParams,
   type HitMissAnalysisPromptParams,
 } from "./prompts";
+import { searchMarketContext } from "./search";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -117,7 +118,9 @@ export class AIEngine {
     params: MarketAnalysisPromptParams,
   ): Promise<AIAnalysis | null> {
     try {
-      const prompt = buildMarketAnalysisPrompt(params);
+      // Fetch real-time web context via Brave Search
+      const webContext = await searchMarketContext(params.title, params.category);
+      const prompt = buildMarketAnalysisPrompt(params) + webContext;
 
       const response = await this.client.chat.completions.create({
         model: MODEL,
