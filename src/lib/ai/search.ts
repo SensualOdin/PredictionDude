@@ -27,7 +27,6 @@ export async function searchMarketContext(
   if (!apiKey) return "";
 
   try {
-    // Build a search query from the market title
     const query = buildSearchQuery(marketTitle, category);
 
     const res = await fetch(
@@ -64,7 +63,6 @@ export async function searchMarketContext(
 }
 
 function buildSearchQuery(title: string, category: string): string {
-  // Clean up the title for better search results
   const cleaned = title
     .replace(/\?$/, "")
     .replace(/Winner$/, "")
@@ -74,6 +72,21 @@ function buildSearchQuery(title: string, category: string): string {
     return `${cleaned} today news`;
   }
 
-  // Sports: add "odds injury news today" for better context
-  return `${cleaned} odds injury news today 2026`;
+  // Detect spread markets: "Team wins by over X Points"
+  const spreadMatch = title.match(/(.+?)\s+wins?\s+by\s+over\s+([\d.]+)\s+Points?/i);
+  if (spreadMatch) {
+    const teamName = spreadMatch[1].trim();
+    return `${teamName} game today spread picks injury report`;
+  }
+
+  // Detect game winner markets: "Team A at Team B Winner"
+  const gameMatch = title.match(/(.+?)\s+at\s+(.+?)\s+Winner/i);
+  if (gameMatch) {
+    const away = gameMatch[1].trim();
+    const home = gameMatch[2].trim();
+    return `${away} vs ${home} today odds picks injury report`;
+  }
+
+  // Fallback: generic sports query
+  return `${cleaned} today odds injury report picks`;
 }

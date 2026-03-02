@@ -74,8 +74,8 @@ function validateAIAnalysis(obj: unknown): AIAnalysis {
 
   return {
     recommendation: recommendation as Recommendation,
-    confidence: Number(data.confidence),
-    suggested_size: Number(data.suggested_size),
+    confidence: Math.min(Number(data.confidence), 95), // Cap at 95 — no bet is 100% certain
+    suggested_size: Math.min(Math.max(Number(data.suggested_size), 1), 15), // 1-15 contracts
     reasoning: String(data.reasoning ?? ""),
     key_risk: String(data.key_risk ?? ""),
     data_sources: Array.isArray(data.data_sources)
@@ -131,7 +131,7 @@ export class AIEngine {
         messages: [
           {
             role: "system",
-            content: "You are an expert sports betting analyst. Think through your analysis carefully, then respond with ONLY valid JSON (no markdown, no extra text). The JSON must contain: recommendation, confidence, suggested_size, reasoning, key_risk, data_sources.",
+            content: "You are a disciplined prediction market analyst. Your goal is to identify genuine mispricings, not to force bets. SKIP is the default — only bet when you have clear evidence of a 15%+ edge. Think through your analysis carefully, then respond with ONLY valid JSON (no markdown, no extra text). The JSON must contain: recommendation, confidence, suggested_size, reasoning, key_risk, data_sources.",
           },
           { role: "user", content: prompt },
         ],

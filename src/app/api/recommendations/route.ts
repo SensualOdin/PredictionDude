@@ -95,9 +95,25 @@ export async function POST(request: NextRequest) {
     const noAsks = orderbook?.no?.length ?? 0;
     const orderbookSummary = `${yesAsks} YES levels, ${noAsks} NO levels`;
 
+    // Detect market type from ticker
+    const marketTitle = String(market.title ?? ticker);
+    const seriesTicker = String(market.series_ticker ?? "");
+    const marketType = seriesTicker.toUpperCase().includes("SPREAD") ? "spread" as const
+      : seriesTicker.toUpperCase().includes("GAME") ? "game_winner" as const
+      : seriesTicker.toUpperCase().includes("MENTION") ? "mention" as const
+      : "unknown" as const;
+
+    const tickerParts = ticker.split("-");
+    const contractTeam = tickerParts.length >= 3
+      ? tickerParts[tickerParts.length - 1].replace(/\d+$/, "") || null
+      : null;
+
+    const spreadMatch = marketTitle.match(/(?:wins?\s+by\s+over\s+)([\d.]+)/i);
+    const spreadPoints = spreadMatch ? parseFloat(spreadMatch[1]) : null;
+
     // Run AI analysis
     const analysis = await aiEngine.analyzeMarket({
-      title: market.title ?? ticker,
+      title: marketTitle,
       category: market.category ?? "unknown",
       yes_price: Number(market.yes_price ?? market.yes_bid ?? 0),
       volume_24h: Number(market.volume_24h ?? market.volume ?? 0),
@@ -107,7 +123,13 @@ export async function POST(request: NextRequest) {
       historical_performance: {
         category_win_rate: null,
         confidence_calibration: "no data yet",
+        recommendation_breakdown: "no data yet",
+        side_performance: "no data yet",
       },
+      market_type: marketType,
+      contract_team: contractTeam,
+      spread_points: spreadPoints,
+      ticker,
     });
 
     if (!analysis) {

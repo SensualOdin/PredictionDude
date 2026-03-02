@@ -13,6 +13,44 @@ export const dynamic = "force-dynamic";
 const BATCH_SIZE = 5; // Parallel AI calls per batch
 
 // ---------------------------------------------------------------------------
+// Market type detection helpers
+// ---------------------------------------------------------------------------
+
+function detectMarketType(
+  seriesTicker: string | null,
+  title: string,
+): "spread" | "game_winner" | "mention" | "unknown" {
+  const st = (seriesTicker ?? "").toUpperCase();
+  if (st.includes("SPREAD")) return "spread";
+  if (st.includes("GAME")) return "game_winner";
+  if (st.includes("MENTION") || st.includes("SOTU")) return "mention";
+
+  // Fallback: detect from title
+  const t = title.toLowerCase();
+  if (t.includes("wins by over") || t.includes("point")) return "spread";
+  if (t.includes("winner")) return "game_winner";
+  if (t.includes("mention") || t.includes("say")) return "mention";
+
+  return "unknown";
+}
+
+function extractContractTeam(ticker: string): string | null {
+  // Ticker format: KXNBAGAME-26MAR02DENUTA-UTA → extract "UTA"
+  // Or: KXNBASPREAD-26MAR02HOUWAS-HOU16 → extract "HOU"
+  const parts = ticker.split("-");
+  if (parts.length < 3) return null;
+  const suffix = parts[parts.length - 1];
+  // Strip trailing numbers (spread points like "16" in "HOU16")
+  return suffix.replace(/\d+$/, "") || null;
+}
+
+function extractSpreadPoints(title: string): number | null {
+  // "Houston wins by over 16.5 Points?" → 16.5
+  const match = title.match(/(?:wins?\s+by\s+over\s+)([\d.]+)/i);
+  return match ? parseFloat(match[1]) : null;
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/cron/analyze — Vercel cron handler
 // POST /api/cron/analyze — Called by scan cron or manually
 //
@@ -112,10 +150,17 @@ async function runAnalyze() {
 
             const yesPrice = Number(item.yes_price ?? 0);
             const category = String(item.category ?? "unknown");
+            const marketTitle = String(item.title ?? ticker);
+            const seriesTicker = item.series_ticker ? String(item.series_ticker) : null;
+
+            // Detect market type and extract context
+            const marketType = detectMarketType(seriesTicker, marketTitle);
+            const contractTeam = extractContractTeam(ticker);
+            const spreadPoints = extractSpreadPoints(marketTitle);
 
             // Run AI analysis
             const analysis = await aiEngine.analyzeMarket({
-              title: String(item.title ?? ticker),
+              title: marketTitle,
               category,
               yes_price: yesPrice,
               volume_24h: Number(item.volume_24h ?? 0),
@@ -123,6 +168,10 @@ async function runAnalyze() {
               orderbook_summary: orderbookSummary,
               strategy_rules: strategyRules as Record<string, unknown>,
               historical_performance: await getHistoricalPerformance(category),
+              market_type: marketType,
+              contract_team: contractTeam,
+              spread_points: spreadPoints,
+              ticker,
             });
 
             if (!analysis) {
@@ -180,7 +229,8 @@ async function runAnalyze() {
             if (analysis.confidence >= minConfidenceThreshold && analysis.recommendation !== "SKIP") {
               const side = analysis.recommendation === "BUY_YES" ? "yes" : "no";
               const entryPrice = yesPrice;
-              const contracts = analysis.suggested_size ?? 1;
+              // Cap contracts at 15 (enforced by prompt, but double-check)
+              const contracts = Math.min(analysis.suggested_size ?? 1, 15);
               const costPerContract = side === "yes" ? entryPrice : (1 - entryPrice);
               const totalCost = costPerContract * contracts;
 
