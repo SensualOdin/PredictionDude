@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 // ---------------------------------------------------------------------------
 
 async function resolveOpenBets() {
+  try {
     // Fetch all open bets from DB
     const openBets = await db
       .select()
